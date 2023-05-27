@@ -1,0 +1,3 @@
+export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+python3 to_script.py -w bert_large -bs 16 -t "cuda" > workloads/bert_log
+python3 transform.py
