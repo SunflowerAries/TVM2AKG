@@ -1,0 +1,1064 @@
+type List[A] {
+  Cons(A, List[A]),
+  Nil,
+}
+
+type Option[A] {
+  Some(A),
+  None,
+}
+
+type Tree[A] {
+  Rose(A, List[Tree[A]]),
+}
+
+type tensor_float16_t {
+  tensor_nil_float16,
+  tensor0_float16(float16),
+  tensor1_float16(Tensor[(?), float16]),
+  tensor2_float16(Tensor[(?, ?), float16]),
+  tensor3_float16(Tensor[(?, ?, ?), float16]),
+  tensor4_float16(Tensor[(?, ?, ?, ?), float16]),
+  tensor5_float16(Tensor[(?, ?, ?, ?, ?), float16]),
+  tensor6_float16(Tensor[(?, ?, ?, ?, ?, ?), float16]),
+}
+
+type tensor_float32_t {
+  tensor_nil_float32,
+  tensor0_float32(float32),
+  tensor1_float32(Tensor[(?), float32]),
+  tensor2_float32(Tensor[(?, ?), float32]),
+  tensor3_float32(Tensor[(?, ?, ?), float32]),
+  tensor4_float32(Tensor[(?, ?, ?, ?), float32]),
+  tensor5_float32(Tensor[(?, ?, ?, ?, ?), float32]),
+  tensor6_float32(Tensor[(?, ?, ?, ?, ?, ?), float32]),
+}
+
+type tensor_float64_t {
+  tensor_nil_float64,
+  tensor0_float64(float64),
+  tensor1_float64(Tensor[(?), float64]),
+  tensor2_float64(Tensor[(?, ?), float64]),
+  tensor3_float64(Tensor[(?, ?, ?), float64]),
+  tensor4_float64(Tensor[(?, ?, ?, ?), float64]),
+  tensor5_float64(Tensor[(?, ?, ?, ?, ?), float64]),
+  tensor6_float64(Tensor[(?, ?, ?, ?, ?, ?), float64]),
+}
+
+type tensor_int16_t {
+  tensor_nil_int16,
+  tensor0_int16(int16),
+  tensor1_int16(Tensor[(?), int16]),
+  tensor2_int16(Tensor[(?, ?), int16]),
+  tensor3_int16(Tensor[(?, ?, ?), int16]),
+  tensor4_int16(Tensor[(?, ?, ?, ?), int16]),
+  tensor5_int16(Tensor[(?, ?, ?, ?, ?), int16]),
+  tensor6_int16(Tensor[(?, ?, ?, ?, ?, ?), int16]),
+}
+
+type tensor_int32_t {
+  tensor_nil_int32,
+  tensor0_int32(int32),
+  tensor1_int32(Tensor[(?), int32]),
+  tensor2_int32(Tensor[(?, ?), int32]),
+  tensor3_int32(Tensor[(?, ?, ?), int32]),
+  tensor4_int32(Tensor[(?, ?, ?, ?), int32]),
+  tensor5_int32(Tensor[(?, ?, ?, ?, ?), int32]),
+  tensor6_int32(Tensor[(?, ?, ?, ?, ?, ?), int32]),
+}
+
+type tensor_int64_t {
+  tensor_nil_int64,
+  tensor0_int64(int64),
+  tensor1_int64(Tensor[(?), int64]),
+  tensor2_int64(Tensor[(?, ?), int64]),
+  tensor3_int64(Tensor[(?, ?, ?), int64]),
+  tensor4_int64(Tensor[(?, ?, ?, ?), int64]),
+  tensor5_int64(Tensor[(?, ?, ?, ?, ?), int64]),
+  tensor6_int64(Tensor[(?, ?, ?, ?, ?, ?), int64]),
+}
+
+type tensor_int8_t {
+  tensor_nil_int8,
+  tensor0_int8(int8),
+  tensor1_int8(Tensor[(?), int8]),
+  tensor2_int8(Tensor[(?, ?), int8]),
+  tensor3_int8(Tensor[(?, ?, ?), int8]),
+  tensor4_int8(Tensor[(?, ?, ?, ?), int8]),
+  tensor5_int8(Tensor[(?, ?, ?, ?, ?), int8]),
+  tensor6_int8(Tensor[(?, ?, ?, ?, ?, ?), int8]),
+}
+
+type tensor_uint16_t {
+  tensor_nil_uint16,
+  tensor0_uint16(uint16),
+  tensor1_uint16(Tensor[(?), uint16]),
+  tensor2_uint16(Tensor[(?, ?), uint16]),
+  tensor3_uint16(Tensor[(?, ?, ?), uint16]),
+  tensor4_uint16(Tensor[(?, ?, ?, ?), uint16]),
+  tensor5_uint16(Tensor[(?, ?, ?, ?, ?), uint16]),
+  tensor6_uint16(Tensor[(?, ?, ?, ?, ?, ?), uint16]),
+}
+
+type tensor_uint8_t {
+  tensor_nil_uint8,
+  tensor0_uint8(uint8),
+  tensor1_uint8(Tensor[(?), uint8]),
+  tensor2_uint8(Tensor[(?, ?), uint8]),
+  tensor3_uint8(Tensor[(?, ?, ?), uint8]),
+  tensor4_uint8(Tensor[(?, ?, ?, ?), uint8]),
+  tensor5_uint8(Tensor[(?, ?, ?, ?, ?), uint8]),
+  tensor6_uint8(Tensor[(?, ?, ?, ?, ?, ?), uint8]),
+}
+
+def @main(%input0: Tensor[(16, 3, 224, 224), float32] /* ty=Tensor[(16, 3, 224, 224), float32] span=aten::_convolution_0.input0:0:0 */) -> (Tensor[(16, 3, 28, 28, 85), float16], Tensor[(16, 3, 14, 14, 85), float16], Tensor[(16, 3, 7, 7, 85), float16]) {
+  %336 = fn (%p086: Tensor[(16, 3, 224, 224), float32] /* ty=Tensor[(16, 3, 224, 224), float32] */, Primitive=1) -> Tensor[(16, 224, 224, 3), float16] {
+    %335 = cast(%p086, dtype="float16") /* ty=Tensor[(16, 3, 224, 224), float16] */;
+    layout_transform(%335, src_layout="NCHW", dst_layout="NHWC") /* ty=Tensor[(16, 224, 224, 3), float16] */
+  } /* ty=fn (Tensor[(16, 3, 224, 224), float32]) -> Tensor[(16, 224, 224, 3), float16] */;
+  %337 = %336(%input0) /* ty=Tensor[(16, 224, 224, 3), float16] */;
+  %338 = fn (%p085: Tensor[(16, 224, 224, 3), float16] /* ty=Tensor[(16, 224, 224, 3), float16] */, %p184: Tensor[(64, 6, 6, 3), float16] /* ty=Tensor[(64, 6, 6, 3), float16] */, %p276: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p375: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 112, 112, 64), float16] {
+    %331 = nn.conv2d(%p085, %p184, strides=[2, 2], padding=[2, 2, 2, 2], channels=64, kernel_size=[6, 6], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 112, 112, 64), float16] */;
+    %332 = multiply(%331, %p276) /* ty=Tensor[(16, 112, 112, 64), float16] */;
+    %333 = add(%332, %p375) /* ty=Tensor[(16, 112, 112, 64), float16] */;
+    %334 = sigmoid(%333) /* ty=Tensor[(16, 112, 112, 64), float16] */;
+    multiply(%333, %334) /* ty=Tensor[(16, 112, 112, 64), float16] */
+  } /* ty=fn (Tensor[(16, 224, 224, 3), float16], Tensor[(64, 6, 6, 3), float16], Tensor[(64), float16], Tensor[(64), float16]) -> Tensor[(16, 112, 112, 64), float16] */;
+  %339 = %338(%337, meta[relay.Constant][0] /* ty=Tensor[(64, 6, 6, 3), float16] */, meta[relay.Constant][1] /* ty=Tensor[(64), float16] */, meta[relay.Constant][2] /* ty=Tensor[(64), float16] */) /* ty=Tensor[(16, 112, 112, 64), float16] */;
+  %340 = fn (%p084: Tensor[(16, 112, 112, 64), float16] /* ty=Tensor[(16, 112, 112, 64), float16] */, %p183: Tensor[(128, 3, 3, 64), float16] /* ty=Tensor[(128, 3, 3, 64), float16] */, %p275: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p374: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 128), float16] {
+    %327 = nn.conv2d(%p084, %p183, strides=[2, 2], padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    %328 = multiply(%327, %p275) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    %329 = add(%328, %p374) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    %330 = sigmoid(%329) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    multiply(%329, %330) /* ty=Tensor[(16, 56, 56, 128), float16] */
+  } /* ty=fn (Tensor[(16, 112, 112, 64), float16], Tensor[(128, 3, 3, 64), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 56, 56, 128), float16] */;
+  %341 = %340(%339, meta[relay.Constant][3] /* ty=Tensor[(128, 3, 3, 64), float16] */, meta[relay.Constant][4] /* ty=Tensor[(128), float16] */, meta[relay.Constant][5] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+  %342 = fn (%p083: Tensor[(16, 56, 56, 128), float16] /* ty=Tensor[(16, 56, 56, 128), float16] */, %p182: Tensor[(64, 1, 1, 128), float16] /* ty=Tensor[(64, 1, 1, 128), float16] */, %p274: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p373: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %323 = nn.conv2d(%p083, %p182, padding=[0, 0, 0, 0], channels=64, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %324 = multiply(%323, %p274) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %325 = add(%324, %p373) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %326 = sigmoid(%325) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    multiply(%325, %326) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 128), float16], Tensor[(64, 1, 1, 128), float16], Tensor[(64), float16], Tensor[(64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %343 = %342(%341, meta[relay.Constant][6] /* ty=Tensor[(64, 1, 1, 128), float16] */, meta[relay.Constant][7] /* ty=Tensor[(64), float16] */, meta[relay.Constant][8] /* ty=Tensor[(64), float16] */) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %344 = fn (%p082: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p181: Tensor[(64, 1, 1, 64), float16] /* ty=Tensor[(64, 1, 1, 64), float16] */, %p273: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p372: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %319 = nn.conv2d(%p082, %p181, padding=[0, 0, 0, 0], channels=64, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %320 = multiply(%319, %p273) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %321 = add(%320, %p372) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %322 = sigmoid(%321) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    multiply(%321, %322) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(64, 1, 1, 64), float16], Tensor[(64), float16], Tensor[(64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %345 = %344(%343, meta[relay.Constant][9] /* ty=Tensor[(64, 1, 1, 64), float16] */, meta[relay.Constant][10] /* ty=Tensor[(64), float16] */, meta[relay.Constant][11] /* ty=Tensor[(64), float16] */) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %346 = fn (%p081: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p180: Tensor[(64, 3, 3, 64), float16] /* ty=Tensor[(64, 3, 3, 64), float16] */, %p272: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p371: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p420: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %314 = nn.conv2d(%p081, %p180, padding=[1, 1, 1, 1], channels=64, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %315 = multiply(%314, %p272) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %316 = add(%315, %p371) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %317 = sigmoid(%316) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %318 = multiply(%316, %317) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    add(%p420, %318) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(64, 3, 3, 64), float16], Tensor[(64), float16], Tensor[(64), float16], Tensor[(16, 56, 56, 64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %347 = %346(%345, meta[relay.Constant][12] /* ty=Tensor[(64, 3, 3, 64), float16] */, meta[relay.Constant][13] /* ty=Tensor[(64), float16] */, meta[relay.Constant][14] /* ty=Tensor[(64), float16] */, %343) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %348 = fn (%p080: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p179: Tensor[(64, 1, 1, 64), float16] /* ty=Tensor[(64, 1, 1, 64), float16] */, %p271: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p370: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %310 = nn.conv2d(%p080, %p179, padding=[0, 0, 0, 0], channels=64, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %311 = multiply(%310, %p271) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %312 = add(%311, %p370) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %313 = sigmoid(%312) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    multiply(%312, %313) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(64, 1, 1, 64), float16], Tensor[(64), float16], Tensor[(64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %349 = %348(%347, meta[relay.Constant][15] /* ty=Tensor[(64, 1, 1, 64), float16] */, meta[relay.Constant][16] /* ty=Tensor[(64), float16] */, meta[relay.Constant][17] /* ty=Tensor[(64), float16] */) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %350 = fn (%p079: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p178: Tensor[(64, 3, 3, 64), float16] /* ty=Tensor[(64, 3, 3, 64), float16] */, %p270: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p369: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p419: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %305 = nn.conv2d(%p079, %p178, padding=[1, 1, 1, 1], channels=64, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %306 = multiply(%305, %p270) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %307 = add(%306, %p369) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %308 = sigmoid(%307) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %309 = multiply(%307, %308) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    add(%p419, %309) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(64, 3, 3, 64), float16], Tensor[(64), float16], Tensor[(64), float16], Tensor[(16, 56, 56, 64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %351 = %350(%349, meta[relay.Constant][18] /* ty=Tensor[(64, 3, 3, 64), float16] */, meta[relay.Constant][19] /* ty=Tensor[(64), float16] */, meta[relay.Constant][20] /* ty=Tensor[(64), float16] */, %347) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %352 = fn (%p078: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p177: Tensor[(64, 1, 1, 64), float16] /* ty=Tensor[(64, 1, 1, 64), float16] */, %p269: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p368: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %301 = nn.conv2d(%p078, %p177, padding=[0, 0, 0, 0], channels=64, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %302 = multiply(%301, %p269) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %303 = add(%302, %p368) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %304 = sigmoid(%303) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    multiply(%303, %304) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(64, 1, 1, 64), float16], Tensor[(64), float16], Tensor[(64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %353 = %352(%351, meta[relay.Constant][21] /* ty=Tensor[(64, 1, 1, 64), float16] */, meta[relay.Constant][22] /* ty=Tensor[(64), float16] */, meta[relay.Constant][23] /* ty=Tensor[(64), float16] */) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %354 = fn (%p077: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p176: Tensor[(64, 3, 3, 64), float16] /* ty=Tensor[(64, 3, 3, 64), float16] */, %p268: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p367: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p418: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %296 = nn.conv2d(%p077, %p176, padding=[1, 1, 1, 1], channels=64, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %297 = multiply(%296, %p268) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %298 = add(%297, %p367) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %299 = sigmoid(%298) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %300 = multiply(%298, %299) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    add(%p418, %300) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(64, 3, 3, 64), float16], Tensor[(64), float16], Tensor[(64), float16], Tensor[(16, 56, 56, 64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %359 = fn (%p087: Tensor[(16, 56, 56, 128), float16] /* ty=Tensor[(16, 56, 56, 128), float16] */, %p185: Tensor[(64, 1, 1, 128), float16] /* ty=Tensor[(64, 1, 1, 128), float16] */, %p277: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p376: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
+    %355 = nn.conv2d(%p087, %p185, padding=[0, 0, 0, 0], channels=64, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %356 = multiply(%355, %p277) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %357 = add(%356, %p376) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    %358 = sigmoid(%357) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+    multiply(%357, %358) /* ty=Tensor[(16, 56, 56, 64), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 128), float16], Tensor[(64, 1, 1, 128), float16], Tensor[(64), float16], Tensor[(64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
+  %360 = %354(%353, meta[relay.Constant][24] /* ty=Tensor[(64, 3, 3, 64), float16] */, meta[relay.Constant][25] /* ty=Tensor[(64), float16] */, meta[relay.Constant][26] /* ty=Tensor[(64), float16] */, %351) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %361 = %359(%341, meta[relay.Constant][27] /* ty=Tensor[(64, 1, 1, 128), float16] */, meta[relay.Constant][28] /* ty=Tensor[(64), float16] */, meta[relay.Constant][29] /* ty=Tensor[(64), float16] */) /* ty=Tensor[(16, 56, 56, 64), float16] */;
+  %362 = fn (%p076: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p175: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 128), float16] {
+    %295 = (%p076, %p175) /* ty=(Tensor[(16, 56, 56, 64), float16], Tensor[(16, 56, 56, 64), float16]) span=aten::cat_0:0:0 */;
+    concatenate(%295, axis=3) /* ty=Tensor[(16, 56, 56, 128), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(16, 56, 56, 64), float16]) -> Tensor[(16, 56, 56, 128), float16] */;
+  %363 = %362(%360, %361) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+  %364 = fn (%p075: Tensor[(16, 56, 56, 128), float16] /* ty=Tensor[(16, 56, 56, 128), float16] */, %p174: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p267: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p366: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 128), float16] {
+    %291 = nn.conv2d(%p075, %p174, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    %292 = multiply(%291, %p267) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    %293 = add(%292, %p366) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    %294 = sigmoid(%293) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+    multiply(%293, %294) /* ty=Tensor[(16, 56, 56, 128), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 56, 56, 128), float16] */;
+  %365 = %364(%363, meta[relay.Constant][30] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][31] /* ty=Tensor[(128), float16] */, meta[relay.Constant][32] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 56, 56, 128), float16] */;
+  %366 = fn (%p074: Tensor[(16, 56, 56, 128), float16] /* ty=Tensor[(16, 56, 56, 128), float16] */, %p173: Tensor[(256, 3, 3, 128), float16] /* ty=Tensor[(256, 3, 3, 128), float16] */, %p266: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p365: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 256), float16] {
+    %287 = nn.conv2d(%p074, %p173, strides=[2, 2], padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %288 = multiply(%287, %p266) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %289 = add(%288, %p365) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %290 = sigmoid(%289) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    multiply(%289, %290) /* ty=Tensor[(16, 28, 28, 256), float16] */
+  } /* ty=fn (Tensor[(16, 56, 56, 128), float16], Tensor[(256, 3, 3, 128), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 28, 28, 256), float16] */;
+  %367 = %366(%365, meta[relay.Constant][33] /* ty=Tensor[(256, 3, 3, 128), float16] */, meta[relay.Constant][34] /* ty=Tensor[(256), float16] */, meta[relay.Constant][35] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+  %368 = fn (%p073: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, %p172: Tensor[(128, 1, 1, 256), float16] /* ty=Tensor[(128, 1, 1, 256), float16] */, %p265: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p364: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %283 = nn.conv2d(%p073, %p172, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %284 = multiply(%283, %p265) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %285 = add(%284, %p364) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %286 = sigmoid(%285) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%285, %286) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 256), float16], Tensor[(128, 1, 1, 256), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %369 = %368(%367, meta[relay.Constant][36] /* ty=Tensor[(128, 1, 1, 256), float16] */, meta[relay.Constant][37] /* ty=Tensor[(128), float16] */, meta[relay.Constant][38] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %370 = fn (%p072: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p171: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p264: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p363: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %279 = nn.conv2d(%p072, %p171, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %280 = multiply(%279, %p264) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %281 = add(%280, %p363) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %282 = sigmoid(%281) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%281, %282) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %371 = %370(%369, meta[relay.Constant][39] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][40] /* ty=Tensor[(128), float16] */, meta[relay.Constant][41] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %372 = fn (%p071: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p170: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p263: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p362: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p417: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %274 = nn.conv2d(%p071, %p170, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %275 = multiply(%274, %p263) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %276 = add(%275, %p362) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %277 = sigmoid(%276) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %278 = multiply(%276, %277) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    add(%p417, %278) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %373 = %372(%371, meta[relay.Constant][42] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][43] /* ty=Tensor[(128), float16] */, meta[relay.Constant][44] /* ty=Tensor[(128), float16] */, %369) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %374 = fn (%p070: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p169: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p262: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p361: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %270 = nn.conv2d(%p070, %p169, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %271 = multiply(%270, %p262) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %272 = add(%271, %p361) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %273 = sigmoid(%272) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%272, %273) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %375 = %374(%373, meta[relay.Constant][45] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][46] /* ty=Tensor[(128), float16] */, meta[relay.Constant][47] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %376 = fn (%p069: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p168: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p261: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p360: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p416: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %265 = nn.conv2d(%p069, %p168, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %266 = multiply(%265, %p261) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %267 = add(%266, %p360) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %268 = sigmoid(%267) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %269 = multiply(%267, %268) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    add(%p416, %269) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %377 = %376(%375, meta[relay.Constant][48] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][49] /* ty=Tensor[(128), float16] */, meta[relay.Constant][50] /* ty=Tensor[(128), float16] */, %373) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %378 = fn (%p068: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p167: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p260: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p359: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %261 = nn.conv2d(%p068, %p167, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %262 = multiply(%261, %p260) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %263 = add(%262, %p359) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %264 = sigmoid(%263) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%263, %264) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %379 = %378(%377, meta[relay.Constant][51] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][52] /* ty=Tensor[(128), float16] */, meta[relay.Constant][53] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %380 = fn (%p067: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p166: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p259: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p358: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p415: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %256 = nn.conv2d(%p067, %p166, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %257 = multiply(%256, %p259) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %258 = add(%257, %p358) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %259 = sigmoid(%258) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %260 = multiply(%258, %259) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    add(%p415, %260) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %381 = %380(%379, meta[relay.Constant][54] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][55] /* ty=Tensor[(128), float16] */, meta[relay.Constant][56] /* ty=Tensor[(128), float16] */, %377) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %382 = fn (%p066: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p165: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p258: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p357: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %252 = nn.conv2d(%p066, %p165, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %253 = multiply(%252, %p258) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %254 = add(%253, %p357) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %255 = sigmoid(%254) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%254, %255) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %383 = %382(%381, meta[relay.Constant][57] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][58] /* ty=Tensor[(128), float16] */, meta[relay.Constant][59] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %384 = fn (%p065: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p164: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p257: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p356: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p414: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %247 = nn.conv2d(%p065, %p164, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %248 = multiply(%247, %p257) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %249 = add(%248, %p356) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %250 = sigmoid(%249) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %251 = multiply(%249, %250) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    add(%p414, %251) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %385 = %384(%383, meta[relay.Constant][60] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][61] /* ty=Tensor[(128), float16] */, meta[relay.Constant][62] /* ty=Tensor[(128), float16] */, %381) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %386 = fn (%p064: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p163: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p256: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p355: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %243 = nn.conv2d(%p064, %p163, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %244 = multiply(%243, %p256) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %245 = add(%244, %p355) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %246 = sigmoid(%245) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%245, %246) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %387 = %386(%385, meta[relay.Constant][63] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][64] /* ty=Tensor[(128), float16] */, meta[relay.Constant][65] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %388 = fn (%p063: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p162: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p255: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p354: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p413: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %238 = nn.conv2d(%p063, %p162, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %239 = multiply(%238, %p255) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %240 = add(%239, %p354) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %241 = sigmoid(%240) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %242 = multiply(%240, %241) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    add(%p413, %242) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %389 = %388(%387, meta[relay.Constant][66] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][67] /* ty=Tensor[(128), float16] */, meta[relay.Constant][68] /* ty=Tensor[(128), float16] */, %385) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %390 = fn (%p062: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p161: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p254: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p353: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %234 = nn.conv2d(%p062, %p161, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %235 = multiply(%234, %p254) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %236 = add(%235, %p353) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %237 = sigmoid(%236) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%236, %237) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %391 = %390(%389, meta[relay.Constant][69] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][70] /* ty=Tensor[(128), float16] */, meta[relay.Constant][71] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %392 = fn (%p061: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p160: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p253: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p352: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p412: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %229 = nn.conv2d(%p061, %p160, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %230 = multiply(%229, %p253) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %231 = add(%230, %p352) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %232 = sigmoid(%231) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %233 = multiply(%231, %232) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    add(%p412, %233) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %397 = fn (%p088: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, %p186: Tensor[(128, 1, 1, 256), float16] /* ty=Tensor[(128, 1, 1, 256), float16] */, %p278: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p377: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %393 = nn.conv2d(%p088, %p186, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %394 = multiply(%393, %p278) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %395 = add(%394, %p377) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %396 = sigmoid(%395) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%395, %396) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 256), float16], Tensor[(128, 1, 1, 256), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %398 = %392(%391, meta[relay.Constant][72] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][73] /* ty=Tensor[(128), float16] */, meta[relay.Constant][74] /* ty=Tensor[(128), float16] */, %389) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %399 = %397(%367, meta[relay.Constant][75] /* ty=Tensor[(128, 1, 1, 256), float16] */, meta[relay.Constant][76] /* ty=Tensor[(128), float16] */, meta[relay.Constant][77] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %400 = fn (%p060: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p159: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 256), float16] {
+    %228 = (%p060, %p159) /* ty=(Tensor[(16, 28, 28, 128), float16], Tensor[(16, 28, 28, 128), float16]) span=aten::cat_1:0:0 */;
+    concatenate(%228, axis=3) /* ty=Tensor[(16, 28, 28, 256), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 256), float16] */;
+  %401 = %400(%398, %399) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+  %402 = fn (%p059: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, %p158: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p252: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p351: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 256), float16] {
+    %224 = nn.conv2d(%p059, %p158, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %225 = multiply(%224, %p252) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %226 = add(%225, %p351) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %227 = sigmoid(%226) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    multiply(%226, %227) /* ty=Tensor[(16, 28, 28, 256), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 28, 28, 256), float16] */;
+  %403 = %402(%401, meta[relay.Constant][78] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][79] /* ty=Tensor[(256), float16] */, meta[relay.Constant][80] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+  %404 = fn (%p058: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, %p157: Tensor[(512, 3, 3, 256), float16] /* ty=Tensor[(512, 3, 3, 256), float16] */, %p251: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p350: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %220 = nn.conv2d(%p058, %p157, strides=[2, 2], padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %221 = multiply(%220, %p251) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %222 = add(%221, %p350) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %223 = sigmoid(%222) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    multiply(%222, %223) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 256), float16], Tensor[(512, 3, 3, 256), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %405 = %404(%403, meta[relay.Constant][81] /* ty=Tensor[(512, 3, 3, 256), float16] */, meta[relay.Constant][82] /* ty=Tensor[(512), float16] */, meta[relay.Constant][83] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %406 = fn (%p057: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p156: Tensor[(256, 1, 1, 512), float16] /* ty=Tensor[(256, 1, 1, 512), float16] */, %p250: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p349: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %216 = nn.conv2d(%p057, %p156, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %217 = multiply(%216, %p250) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %218 = add(%217, %p349) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %219 = sigmoid(%218) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%218, %219) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(256, 1, 1, 512), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %407 = %406(%405, meta[relay.Constant][84] /* ty=Tensor[(256, 1, 1, 512), float16] */, meta[relay.Constant][85] /* ty=Tensor[(256), float16] */, meta[relay.Constant][86] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %408 = fn (%p056: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p155: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p249: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p348: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %212 = nn.conv2d(%p056, %p155, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %213 = multiply(%212, %p249) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %214 = add(%213, %p348) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %215 = sigmoid(%214) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%214, %215) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %409 = %408(%407, meta[relay.Constant][87] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][88] /* ty=Tensor[(256), float16] */, meta[relay.Constant][89] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %410 = fn (%p055: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p154: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p248: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p347: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p411: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %207 = nn.conv2d(%p055, %p154, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %208 = multiply(%207, %p248) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %209 = add(%208, %p347) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %210 = sigmoid(%209) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %211 = multiply(%209, %210) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p411, %211) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %411 = %410(%409, meta[relay.Constant][90] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][91] /* ty=Tensor[(256), float16] */, meta[relay.Constant][92] /* ty=Tensor[(256), float16] */, %407) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %412 = fn (%p054: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p153: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p247: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p346: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %203 = nn.conv2d(%p054, %p153, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %204 = multiply(%203, %p247) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %205 = add(%204, %p346) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %206 = sigmoid(%205) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%205, %206) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %413 = %412(%411, meta[relay.Constant][93] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][94] /* ty=Tensor[(256), float16] */, meta[relay.Constant][95] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %414 = fn (%p053: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p152: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p246: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p345: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p410: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %198 = nn.conv2d(%p053, %p152, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %199 = multiply(%198, %p246) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %200 = add(%199, %p345) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %201 = sigmoid(%200) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %202 = multiply(%200, %201) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p410, %202) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %415 = %414(%413, meta[relay.Constant][96] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][97] /* ty=Tensor[(256), float16] */, meta[relay.Constant][98] /* ty=Tensor[(256), float16] */, %411) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %416 = fn (%p052: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p151: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p245: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p344: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %194 = nn.conv2d(%p052, %p151, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %195 = multiply(%194, %p245) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %196 = add(%195, %p344) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %197 = sigmoid(%196) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%196, %197) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %417 = %416(%415, meta[relay.Constant][99] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][100] /* ty=Tensor[(256), float16] */, meta[relay.Constant][101] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %418 = fn (%p051: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p150: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p244: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p343: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p49: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %189 = nn.conv2d(%p051, %p150, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %190 = multiply(%189, %p244) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %191 = add(%190, %p343) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %192 = sigmoid(%191) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %193 = multiply(%191, %192) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p49, %193) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %419 = %418(%417, meta[relay.Constant][102] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][103] /* ty=Tensor[(256), float16] */, meta[relay.Constant][104] /* ty=Tensor[(256), float16] */, %415) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %420 = fn (%p050: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p149: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p243: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p342: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %185 = nn.conv2d(%p050, %p149, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %186 = multiply(%185, %p243) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %187 = add(%186, %p342) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %188 = sigmoid(%187) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%187, %188) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %421 = %420(%419, meta[relay.Constant][105] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][106] /* ty=Tensor[(256), float16] */, meta[relay.Constant][107] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %422 = fn (%p049: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p148: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p242: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p341: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p48: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %180 = nn.conv2d(%p049, %p148, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %181 = multiply(%180, %p242) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %182 = add(%181, %p341) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %183 = sigmoid(%182) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %184 = multiply(%182, %183) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p48, %184) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %423 = %422(%421, meta[relay.Constant][108] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][109] /* ty=Tensor[(256), float16] */, meta[relay.Constant][110] /* ty=Tensor[(256), float16] */, %419) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %424 = fn (%p048: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p147: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p241: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p340: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %176 = nn.conv2d(%p048, %p147, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %177 = multiply(%176, %p241) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %178 = add(%177, %p340) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %179 = sigmoid(%178) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%178, %179) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %425 = %424(%423, meta[relay.Constant][111] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][112] /* ty=Tensor[(256), float16] */, meta[relay.Constant][113] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %426 = fn (%p047: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p146: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p240: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p339: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p47: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %171 = nn.conv2d(%p047, %p146, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %172 = multiply(%171, %p240) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %173 = add(%172, %p339) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %174 = sigmoid(%173) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %175 = multiply(%173, %174) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p47, %175) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %427 = %426(%425, meta[relay.Constant][114] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][115] /* ty=Tensor[(256), float16] */, meta[relay.Constant][116] /* ty=Tensor[(256), float16] */, %423) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %428 = fn (%p046: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p145: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p239: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p338: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %167 = nn.conv2d(%p046, %p145, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %168 = multiply(%167, %p239) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %169 = add(%168, %p338) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %170 = sigmoid(%169) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%169, %170) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %429 = %428(%427, meta[relay.Constant][117] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][118] /* ty=Tensor[(256), float16] */, meta[relay.Constant][119] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %430 = fn (%p045: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p144: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p238: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p337: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p46: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %162 = nn.conv2d(%p045, %p144, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %163 = multiply(%162, %p238) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %164 = add(%163, %p337) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %165 = sigmoid(%164) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %166 = multiply(%164, %165) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p46, %166) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %431 = %430(%429, meta[relay.Constant][120] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][121] /* ty=Tensor[(256), float16] */, meta[relay.Constant][122] /* ty=Tensor[(256), float16] */, %427) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %432 = fn (%p044: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p143: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p237: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p336: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %158 = nn.conv2d(%p044, %p143, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %159 = multiply(%158, %p237) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %160 = add(%159, %p336) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %161 = sigmoid(%160) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%160, %161) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %433 = %432(%431, meta[relay.Constant][123] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][124] /* ty=Tensor[(256), float16] */, meta[relay.Constant][125] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %434 = fn (%p043: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p142: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p236: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p335: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p45: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %153 = nn.conv2d(%p043, %p142, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %154 = multiply(%153, %p236) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %155 = add(%154, %p335) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %156 = sigmoid(%155) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %157 = multiply(%155, %156) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p45, %157) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %435 = %434(%433, meta[relay.Constant][126] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][127] /* ty=Tensor[(256), float16] */, meta[relay.Constant][128] /* ty=Tensor[(256), float16] */, %431) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %436 = fn (%p042: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p141: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p235: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p334: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %149 = nn.conv2d(%p042, %p141, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %150 = multiply(%149, %p235) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %151 = add(%150, %p334) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %152 = sigmoid(%151) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%151, %152) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %437 = %436(%435, meta[relay.Constant][129] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][130] /* ty=Tensor[(256), float16] */, meta[relay.Constant][131] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %438 = fn (%p041: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p140: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p234: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p333: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p44: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %144 = nn.conv2d(%p041, %p140, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %145 = multiply(%144, %p234) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %146 = add(%145, %p333) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %147 = sigmoid(%146) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %148 = multiply(%146, %147) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p44, %148) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %439 = %438(%437, meta[relay.Constant][132] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][133] /* ty=Tensor[(256), float16] */, meta[relay.Constant][134] /* ty=Tensor[(256), float16] */, %435) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %440 = fn (%p040: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p139: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p233: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p332: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %140 = nn.conv2d(%p040, %p139, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %141 = multiply(%140, %p233) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %142 = add(%141, %p332) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %143 = sigmoid(%142) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%142, %143) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %441 = %440(%439, meta[relay.Constant][135] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][136] /* ty=Tensor[(256), float16] */, meta[relay.Constant][137] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %442 = fn (%p039: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p138: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p232: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p331: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p43: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %135 = nn.conv2d(%p039, %p138, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %136 = multiply(%135, %p232) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %137 = add(%136, %p331) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %138 = sigmoid(%137) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %139 = multiply(%137, %138) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    add(%p43, %139) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %447 = fn (%p089: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p187: Tensor[(256, 1, 1, 512), float16] /* ty=Tensor[(256, 1, 1, 512), float16] */, %p279: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p378: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %443 = nn.conv2d(%p089, %p187, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %444 = multiply(%443, %p279) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %445 = add(%444, %p378) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %446 = sigmoid(%445) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%445, %446) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(256, 1, 1, 512), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %448 = %442(%441, meta[relay.Constant][138] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][139] /* ty=Tensor[(256), float16] */, meta[relay.Constant][140] /* ty=Tensor[(256), float16] */, %439) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %449 = %447(%405, meta[relay.Constant][141] /* ty=Tensor[(256, 1, 1, 512), float16] */, meta[relay.Constant][142] /* ty=Tensor[(256), float16] */, meta[relay.Constant][143] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %450 = fn (%p038: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p137: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %134 = (%p038, %p137) /* ty=(Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) span=aten::cat_2:0:0 */;
+    concatenate(%134, axis=3) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %451 = %450(%448, %449) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %452 = fn (%p037: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p136: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p231: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p330: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %130 = nn.conv2d(%p037, %p136, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %131 = multiply(%130, %p231) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %132 = add(%131, %p330) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %133 = sigmoid(%132) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    multiply(%132, %133) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %453 = %452(%451, meta[relay.Constant][144] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][145] /* ty=Tensor[(512), float16] */, meta[relay.Constant][146] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %454 = fn (%p036: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p135: Tensor[(1024, 3, 3, 512), float16] /* ty=Tensor[(1024, 3, 3, 512), float16] */, %p230: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, %p329: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 1024), float16] {
+    %126 = nn.conv2d(%p036, %p135, strides=[2, 2], padding=[1, 1, 1, 1], channels=1024, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %127 = multiply(%126, %p230) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %128 = add(%127, %p329) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %129 = sigmoid(%128) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    multiply(%128, %129) /* ty=Tensor[(16, 7, 7, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(1024, 3, 3, 512), float16], Tensor[(1024), float16], Tensor[(1024), float16]) -> Tensor[(16, 7, 7, 1024), float16] */;
+  %455 = %454(%453, meta[relay.Constant][147] /* ty=Tensor[(1024, 3, 3, 512), float16] */, meta[relay.Constant][148] /* ty=Tensor[(1024), float16] */, meta[relay.Constant][149] /* ty=Tensor[(1024), float16] */) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+  %456 = fn (%p035: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p134: Tensor[(512, 1, 1, 1024), float16] /* ty=Tensor[(512, 1, 1, 1024), float16] */, %p229: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p328: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %122 = nn.conv2d(%p035, %p134, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %123 = multiply(%122, %p229) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %124 = add(%123, %p328) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %125 = sigmoid(%124) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%124, %125) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(512, 1, 1, 1024), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %457 = %456(%455, meta[relay.Constant][150] /* ty=Tensor[(512, 1, 1, 1024), float16] */, meta[relay.Constant][151] /* ty=Tensor[(512), float16] */, meta[relay.Constant][152] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %458 = fn (%p034: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p133: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p228: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p327: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %118 = nn.conv2d(%p034, %p133, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %119 = multiply(%118, %p228) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %120 = add(%119, %p327) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %121 = sigmoid(%120) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%120, %121) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %459 = %458(%457, meta[relay.Constant][153] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][154] /* ty=Tensor[(512), float16] */, meta[relay.Constant][155] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %460 = fn (%p033: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p132: Tensor[(512, 3, 3, 512), float16] /* ty=Tensor[(512, 3, 3, 512), float16] */, %p227: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p326: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p42: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %113 = nn.conv2d(%p033, %p132, padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %114 = multiply(%113, %p227) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %115 = add(%114, %p326) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %116 = sigmoid(%115) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %117 = multiply(%115, %116) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    add(%p42, %117) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 3, 3, 512), float16], Tensor[(512), float16], Tensor[(512), float16], Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %461 = %460(%459, meta[relay.Constant][156] /* ty=Tensor[(512, 3, 3, 512), float16] */, meta[relay.Constant][157] /* ty=Tensor[(512), float16] */, meta[relay.Constant][158] /* ty=Tensor[(512), float16] */, %457) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %462 = fn (%p032: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p131: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p226: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p325: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %109 = nn.conv2d(%p032, %p131, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %110 = multiply(%109, %p226) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %111 = add(%110, %p325) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %112 = sigmoid(%111) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%111, %112) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %463 = %462(%461, meta[relay.Constant][159] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][160] /* ty=Tensor[(512), float16] */, meta[relay.Constant][161] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %464 = fn (%p031: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p130: Tensor[(512, 3, 3, 512), float16] /* ty=Tensor[(512, 3, 3, 512), float16] */, %p225: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p324: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p41: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %104 = nn.conv2d(%p031, %p130, padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %105 = multiply(%104, %p225) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %106 = add(%105, %p324) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %107 = sigmoid(%106) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %108 = multiply(%106, %107) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    add(%p41, %108) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 3, 3, 512), float16], Tensor[(512), float16], Tensor[(512), float16], Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %465 = %464(%463, meta[relay.Constant][162] /* ty=Tensor[(512, 3, 3, 512), float16] */, meta[relay.Constant][163] /* ty=Tensor[(512), float16] */, meta[relay.Constant][164] /* ty=Tensor[(512), float16] */, %461) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %466 = fn (%p030: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p129: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p224: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p323: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %100 = nn.conv2d(%p030, %p129, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %101 = multiply(%100, %p224) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %102 = add(%101, %p323) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %103 = sigmoid(%102) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%102, %103) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %467 = %466(%465, meta[relay.Constant][165] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][166] /* ty=Tensor[(512), float16] */, meta[relay.Constant][167] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %468 = fn (%p029: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p128: Tensor[(512, 3, 3, 512), float16] /* ty=Tensor[(512, 3, 3, 512), float16] */, %p223: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p322: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p4: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %95 = nn.conv2d(%p029, %p128, padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %96 = multiply(%95, %p223) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %97 = add(%96, %p322) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %98 = sigmoid(%97) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %99 = multiply(%97, %98) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    add(%p4, %99) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 3, 3, 512), float16], Tensor[(512), float16], Tensor[(512), float16], Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %473 = fn (%p090: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p188: Tensor[(512, 1, 1, 1024), float16] /* ty=Tensor[(512, 1, 1, 1024), float16] */, %p280: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p379: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %469 = nn.conv2d(%p090, %p188, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %470 = multiply(%469, %p280) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %471 = add(%470, %p379) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %472 = sigmoid(%471) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%471, %472) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(512, 1, 1, 1024), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %474 = %468(%467, meta[relay.Constant][168] /* ty=Tensor[(512, 3, 3, 512), float16] */, meta[relay.Constant][169] /* ty=Tensor[(512), float16] */, meta[relay.Constant][170] /* ty=Tensor[(512), float16] */, %465) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %475 = %473(%455, meta[relay.Constant][171] /* ty=Tensor[(512, 1, 1, 1024), float16] */, meta[relay.Constant][172] /* ty=Tensor[(512), float16] */, meta[relay.Constant][173] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %476 = fn (%p028: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p127: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 1024), float16] {
+    %94 = (%p028, %p127) /* ty=(Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) span=aten::cat_3:0:0 */;
+    concatenate(%94, axis=3) /* ty=Tensor[(16, 7, 7, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 1024), float16] */;
+  %477 = %476(%474, %475) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+  %478 = fn (%p027: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p126: Tensor[(1024, 1, 1, 1024), float16] /* ty=Tensor[(1024, 1, 1, 1024), float16] */, %p222: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, %p321: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 1024), float16] {
+    %90 = nn.conv2d(%p027, %p126, padding=[0, 0, 0, 0], channels=1024, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %91 = multiply(%90, %p222) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %92 = add(%91, %p321) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %93 = sigmoid(%92) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    multiply(%92, %93) /* ty=Tensor[(16, 7, 7, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(1024, 1, 1, 1024), float16], Tensor[(1024), float16], Tensor[(1024), float16]) -> Tensor[(16, 7, 7, 1024), float16] */;
+  %479 = %478(%477, meta[relay.Constant][174] /* ty=Tensor[(1024, 1, 1, 1024), float16] */, meta[relay.Constant][175] /* ty=Tensor[(1024), float16] */, meta[relay.Constant][176] /* ty=Tensor[(1024), float16] */) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+  %480 = fn (%p026: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p125: Tensor[(512, 1, 1, 1024), float16] /* ty=Tensor[(512, 1, 1, 1024), float16] */, %p221: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p320: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %86 = nn.conv2d(%p026, %p125, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %87 = multiply(%86, %p221) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %88 = add(%87, %p320) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %89 = sigmoid(%88) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%88, %89) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(512, 1, 1, 1024), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %481 = %480(%479, meta[relay.Constant][177] /* ty=Tensor[(512, 1, 1, 1024), float16] */, meta[relay.Constant][178] /* ty=Tensor[(512), float16] */, meta[relay.Constant][179] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %482 = fn (%p091: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    nn.max_pool2d(%p091, pool_size=[5, 5], padding=[2, 2, 2, 2], layout="NHWC", out_layout="NHWC") /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %483 = %482(%481) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %484 = fn (%p092: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    nn.max_pool2d(%p092, pool_size=[5, 5], padding=[2, 2, 2, 2], layout="NHWC", out_layout="NHWC") /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %485 = %484(%483) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %486 = fn (%p093: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    nn.max_pool2d(%p093, pool_size=[5, 5], padding=[2, 2, 2, 2], layout="NHWC", out_layout="NHWC") /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %487 = %486(%485) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %488 = fn (%p025: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p124: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p220: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p319: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 2048), float16] {
+    %85 = (%p025, %p124, %p220, %p319) /* ty=(Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) span=aten::cat_4:0:0 */;
+    concatenate(%85, axis=3) /* ty=Tensor[(16, 7, 7, 2048), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 2048), float16] */;
+  %489 = %488(%481, %483, %485, %487) /* ty=Tensor[(16, 7, 7, 2048), float16] */;
+  %490 = fn (%p024: Tensor[(16, 7, 7, 2048), float16] /* ty=Tensor[(16, 7, 7, 2048), float16] */, %p123: Tensor[(1024, 1, 1, 2048), float16] /* ty=Tensor[(1024, 1, 1, 2048), float16] */, %p219: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, %p318: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 1024), float16] {
+    %81 = nn.conv2d(%p024, %p123, padding=[0, 0, 0, 0], channels=1024, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %82 = multiply(%81, %p219) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %83 = add(%82, %p318) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %84 = sigmoid(%83) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    multiply(%83, %84) /* ty=Tensor[(16, 7, 7, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 2048), float16], Tensor[(1024, 1, 1, 2048), float16], Tensor[(1024), float16], Tensor[(1024), float16]) -> Tensor[(16, 7, 7, 1024), float16] */;
+  %491 = %490(%489, meta[relay.Constant][180] /* ty=Tensor[(1024, 1, 1, 2048), float16] */, meta[relay.Constant][181] /* ty=Tensor[(1024), float16] */, meta[relay.Constant][182] /* ty=Tensor[(1024), float16] */) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+  %492 = fn (%p023: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p122: Tensor[(512, 1, 1, 1024), float16] /* ty=Tensor[(512, 1, 1, 1024), float16] */, %p218: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p317: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %77 = nn.conv2d(%p023, %p122, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %78 = multiply(%77, %p218) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %79 = add(%78, %p317) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %80 = sigmoid(%79) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%79, %80) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(512, 1, 1, 1024), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %493 = %492(%491, meta[relay.Constant][183] /* ty=Tensor[(512, 1, 1, 1024), float16] */, meta[relay.Constant][184] /* ty=Tensor[(512), float16] */, meta[relay.Constant][185] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %494 = fn (%p022: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p121: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 1024), float16] {
+    %75 = image.resize2d(%p022, size=[14, 14], roi=[0f, 0f, 0f, 0f], layout="NHWC", method="nearest_neighbor", coordinate_transformation_mode="asymmetric", rounding_method="", cubic_alpha=-0.75f) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %76 = (%75, %p121) /* ty=(Tensor[(16, 14, 14, 512), float16], Tensor[(16, 14, 14, 512), float16]) span=aten::cat_5:0:0 */;
+    concatenate(%76, axis=3) /* ty=Tensor[(16, 14, 14, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(16, 14, 14, 512), float16]) -> Tensor[(16, 14, 14, 1024), float16] */;
+  %495 = %494(%493, %453) /* ty=Tensor[(16, 14, 14, 1024), float16] */;
+  %496 = fn (%p021: Tensor[(16, 14, 14, 1024), float16] /* ty=Tensor[(16, 14, 14, 1024), float16] */, %p120: Tensor[(256, 1, 1, 1024), float16] /* ty=Tensor[(256, 1, 1, 1024), float16] */, %p217: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p316: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %71 = nn.conv2d(%p021, %p120, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %72 = multiply(%71, %p217) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %73 = add(%72, %p316) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %74 = sigmoid(%73) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%73, %74) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 1024), float16], Tensor[(256, 1, 1, 1024), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %497 = %496(%495, meta[relay.Constant][186] /* ty=Tensor[(256, 1, 1, 1024), float16] */, meta[relay.Constant][187] /* ty=Tensor[(256), float16] */, meta[relay.Constant][188] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %498 = fn (%p020: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p119: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p216: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p315: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %67 = nn.conv2d(%p020, %p119, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %68 = multiply(%67, %p216) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %69 = add(%68, %p315) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %70 = sigmoid(%69) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%69, %70) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %499 = %498(%497, meta[relay.Constant][189] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][190] /* ty=Tensor[(256), float16] */, meta[relay.Constant][191] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %500 = fn (%p019: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p118: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p215: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p314: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %63 = nn.conv2d(%p019, %p118, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %64 = multiply(%63, %p215) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %65 = add(%64, %p314) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %66 = sigmoid(%65) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%65, %66) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %501 = %500(%499, meta[relay.Constant][192] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][193] /* ty=Tensor[(256), float16] */, meta[relay.Constant][194] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %502 = fn (%p018: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p117: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p214: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p313: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %59 = nn.conv2d(%p018, %p117, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %60 = multiply(%59, %p214) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %61 = add(%60, %p313) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %62 = sigmoid(%61) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%61, %62) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %503 = %502(%501, meta[relay.Constant][195] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][196] /* ty=Tensor[(256), float16] */, meta[relay.Constant][197] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %504 = fn (%p017: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p116: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p213: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p312: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %55 = nn.conv2d(%p017, %p116, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %56 = multiply(%55, %p213) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %57 = add(%56, %p312) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %58 = sigmoid(%57) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%57, %58) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %505 = %504(%503, meta[relay.Constant][198] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][199] /* ty=Tensor[(256), float16] */, meta[relay.Constant][200] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %506 = fn (%p016: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p115: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p212: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p311: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %51 = nn.conv2d(%p016, %p115, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %52 = multiply(%51, %p212) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %53 = add(%52, %p311) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %54 = sigmoid(%53) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%53, %54) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %507 = %506(%505, meta[relay.Constant][201] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][202] /* ty=Tensor[(256), float16] */, meta[relay.Constant][203] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %508 = fn (%p015: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p114: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p211: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p310: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %47 = nn.conv2d(%p015, %p114, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %48 = multiply(%47, %p211) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %49 = add(%48, %p310) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %50 = sigmoid(%49) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%49, %50) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %513 = fn (%p094: Tensor[(16, 14, 14, 1024), float16] /* ty=Tensor[(16, 14, 14, 1024), float16] */, %p189: Tensor[(256, 1, 1, 1024), float16] /* ty=Tensor[(256, 1, 1, 1024), float16] */, %p281: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p380: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %509 = nn.conv2d(%p094, %p189, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %510 = multiply(%509, %p281) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %511 = add(%510, %p380) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %512 = sigmoid(%511) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%511, %512) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 1024), float16], Tensor[(256, 1, 1, 1024), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %514 = %508(%507, meta[relay.Constant][204] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][205] /* ty=Tensor[(256), float16] */, meta[relay.Constant][206] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %515 = %513(%495, meta[relay.Constant][207] /* ty=Tensor[(256, 1, 1, 1024), float16] */, meta[relay.Constant][208] /* ty=Tensor[(256), float16] */, meta[relay.Constant][209] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %516 = fn (%p014: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p113: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %46 = (%p014, %p113) /* ty=(Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) span=aten::cat_6:0:0 */;
+    concatenate(%46, axis=3) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %517 = %516(%514, %515) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %518 = fn (%p013: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p112: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p210: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p39: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %42 = nn.conv2d(%p013, %p112, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %43 = multiply(%42, %p210) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %44 = add(%43, %p39) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %45 = sigmoid(%44) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    multiply(%44, %45) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %519 = %518(%517, meta[relay.Constant][210] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][211] /* ty=Tensor[(512), float16] */, meta[relay.Constant][212] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %520 = fn (%p012: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p111: Tensor[(256, 1, 1, 512), float16] /* ty=Tensor[(256, 1, 1, 512), float16] */, %p29: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p38: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %38 = nn.conv2d(%p012, %p111, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %39 = multiply(%38, %p29) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %40 = add(%39, %p38) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %41 = sigmoid(%40) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%40, %41) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(256, 1, 1, 512), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %521 = %520(%519, meta[relay.Constant][213] /* ty=Tensor[(256, 1, 1, 512), float16] */, meta[relay.Constant][214] /* ty=Tensor[(256), float16] */, meta[relay.Constant][215] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %522 = fn (%p011: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p110: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 512), float16] {
+    %36 = image.resize2d(%p011, size=[28, 28], roi=[0f, 0f, 0f, 0f], layout="NHWC", method="nearest_neighbor", coordinate_transformation_mode="asymmetric", rounding_method="", cubic_alpha=-0.75f) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %37 = (%36, %p110) /* ty=(Tensor[(16, 28, 28, 256), float16], Tensor[(16, 28, 28, 256), float16]) span=aten::cat_7:0:0 */;
+    concatenate(%37, axis=3) /* ty=Tensor[(16, 28, 28, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(16, 28, 28, 256), float16]) -> Tensor[(16, 28, 28, 512), float16] */;
+  %523 = %522(%521, %403) /* ty=Tensor[(16, 28, 28, 512), float16] */;
+  %524 = fn (%p010: Tensor[(16, 28, 28, 512), float16] /* ty=Tensor[(16, 28, 28, 512), float16] */, %p19: Tensor[(128, 1, 1, 512), float16] /* ty=Tensor[(128, 1, 1, 512), float16] */, %p28: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p37: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %32 = nn.conv2d(%p010, %p19, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %33 = multiply(%32, %p28) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %34 = add(%33, %p37) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %35 = sigmoid(%34) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%34, %35) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 512), float16], Tensor[(128, 1, 1, 512), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %525 = %524(%523, meta[relay.Constant][216] /* ty=Tensor[(128, 1, 1, 512), float16] */, meta[relay.Constant][217] /* ty=Tensor[(128), float16] */, meta[relay.Constant][218] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %526 = fn (%p09: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p18: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p27: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p36: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %28 = nn.conv2d(%p09, %p18, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %29 = multiply(%28, %p27) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %30 = add(%29, %p36) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %31 = sigmoid(%30) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%30, %31) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %527 = %526(%525, meta[relay.Constant][219] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][220] /* ty=Tensor[(128), float16] */, meta[relay.Constant][221] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %528 = fn (%p08: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p17: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p26: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p35: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %24 = nn.conv2d(%p08, %p17, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %25 = multiply(%24, %p26) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %26 = add(%25, %p35) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %27 = sigmoid(%26) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%26, %27) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %529 = %528(%527, meta[relay.Constant][222] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][223] /* ty=Tensor[(128), float16] */, meta[relay.Constant][224] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %530 = fn (%p07: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p16: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p25: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p34: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %20 = nn.conv2d(%p07, %p16, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %21 = multiply(%20, %p25) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %22 = add(%21, %p34) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %23 = sigmoid(%22) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%22, %23) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %531 = %530(%529, meta[relay.Constant][225] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][226] /* ty=Tensor[(128), float16] */, meta[relay.Constant][227] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %532 = fn (%p06: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p15: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p24: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p33: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %16 = nn.conv2d(%p06, %p15, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %17 = multiply(%16, %p24) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %18 = add(%17, %p33) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %19 = sigmoid(%18) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%18, %19) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %533 = %532(%531, meta[relay.Constant][228] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][229] /* ty=Tensor[(128), float16] */, meta[relay.Constant][230] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %534 = fn (%p05: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p14: Tensor[(128, 1, 1, 128), float16] /* ty=Tensor[(128, 1, 1, 128), float16] */, %p23: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p32: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %12 = nn.conv2d(%p05, %p14, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %13 = multiply(%12, %p23) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %14 = add(%13, %p32) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %15 = sigmoid(%14) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%14, %15) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 1, 1, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %535 = %534(%533, meta[relay.Constant][231] /* ty=Tensor[(128, 1, 1, 128), float16] */, meta[relay.Constant][232] /* ty=Tensor[(128), float16] */, meta[relay.Constant][233] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %536 = fn (%p04: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p13: Tensor[(128, 3, 3, 128), float16] /* ty=Tensor[(128, 3, 3, 128), float16] */, %p22: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p31: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %8 = nn.conv2d(%p04, %p13, padding=[1, 1, 1, 1], channels=128, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %9 = multiply(%8, %p22) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %10 = add(%9, %p31) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %11 = sigmoid(%10) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%10, %11) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(128, 3, 3, 128), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %541 = fn (%p095: Tensor[(16, 28, 28, 512), float16] /* ty=Tensor[(16, 28, 28, 512), float16] */, %p190: Tensor[(128, 1, 1, 512), float16] /* ty=Tensor[(128, 1, 1, 512), float16] */, %p282: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, %p381: Tensor[(128), float16] /* ty=Tensor[(128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 128), float16] {
+    %537 = nn.conv2d(%p095, %p190, padding=[0, 0, 0, 0], channels=128, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %538 = multiply(%537, %p282) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %539 = add(%538, %p381) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    %540 = sigmoid(%539) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+    multiply(%539, %540) /* ty=Tensor[(16, 28, 28, 128), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 512), float16], Tensor[(128, 1, 1, 512), float16], Tensor[(128), float16], Tensor[(128), float16]) -> Tensor[(16, 28, 28, 128), float16] */;
+  %542 = %536(%535, meta[relay.Constant][234] /* ty=Tensor[(128, 3, 3, 128), float16] */, meta[relay.Constant][235] /* ty=Tensor[(128), float16] */, meta[relay.Constant][236] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %543 = %541(%523, meta[relay.Constant][237] /* ty=Tensor[(128, 1, 1, 512), float16] */, meta[relay.Constant][238] /* ty=Tensor[(128), float16] */, meta[relay.Constant][239] /* ty=Tensor[(128), float16] */) /* ty=Tensor[(16, 28, 28, 128), float16] */;
+  %544 = fn (%p03: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, %p12: Tensor[(16, 28, 28, 128), float16] /* ty=Tensor[(16, 28, 28, 128), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 256), float16] {
+    %7 = (%p03, %p12) /* ty=(Tensor[(16, 28, 28, 128), float16], Tensor[(16, 28, 28, 128), float16]) span=aten::cat_8:0:0 */;
+    concatenate(%7, axis=3) /* ty=Tensor[(16, 28, 28, 256), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 128), float16], Tensor[(16, 28, 28, 128), float16]) -> Tensor[(16, 28, 28, 256), float16] */;
+  %545 = %544(%542, %543) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+  %546 = fn (%p02: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, %p11: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p21: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p3: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 256), float16] {
+    %3 = nn.conv2d(%p02, %p11, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %4 = multiply(%3, %p21) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %5 = add(%4, %p3) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    %6 = sigmoid(%5) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+    multiply(%5, %6) /* ty=Tensor[(16, 28, 28, 256), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 28, 28, 256), float16] */;
+  %547 = %546(%545, meta[relay.Constant][240] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][241] /* ty=Tensor[(256), float16] */, meta[relay.Constant][242] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 28, 28, 256), float16] */;
+  %548 = fn (%p01: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, %p1: Tensor[(255, 1, 1, 256), float16] /* ty=Tensor[(255, 1, 1, 256), float16] */, %p2: Tensor[(1, 1, 1, 255), float16] /* ty=Tensor[(1, 1, 1, 255), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 255), float16] {
+    %2 = nn.conv2d(%p01, %p1, padding=[0, 0, 0, 0], channels=255, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 28, 28, 255), float16] */;
+    add(%2, %p2) /* ty=Tensor[(16, 28, 28, 255), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 256), float16], Tensor[(255, 1, 1, 256), float16], Tensor[(1, 1, 1, 255), float16]) -> Tensor[(16, 28, 28, 255), float16] */;
+  %549 = %548(%547, meta[relay.Constant][243] /* ty=Tensor[(255, 1, 1, 256), float16] */, meta[relay.Constant][244] /* ty=Tensor[(1, 1, 1, 255), float16] */) /* ty=Tensor[(16, 28, 28, 255), float16] */;
+  %550 = fn (%p0: Tensor[(16, 28, 28, 255), float16] /* ty=Tensor[(16, 28, 28, 255), float16] */, Primitive=1) -> Tensor[(16, 3, 28, 28, 85), float16] {
+    %0 = layout_transform(%p0, src_layout="NHWC", dst_layout="NCHW") /* ty=Tensor[(16, 255, 28, 28), float16] */;
+    %1 = reshape(%0, newshape=[16, 3, 85, 28, 28]) /* ty=Tensor[(16, 3, 85, 28, 28), float16] */;
+    transpose(%1, axes=[0, 1, 3, 4, 2]) /* ty=Tensor[(16, 3, 28, 28, 85), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 255), float16]) -> Tensor[(16, 3, 28, 28, 85), float16] */;
+  %592 = fn (%p0108: Tensor[(16, 28, 28, 256), float16] /* ty=Tensor[(16, 28, 28, 256), float16] */, %p1102: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p292: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p390: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %588 = nn.conv2d(%p0108, %p1102, strides=[2, 2], padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %589 = multiply(%588, %p292) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %590 = add(%589, %p390) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %591 = sigmoid(%590) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%590, %591) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 28, 28, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %593 = %592(%547, meta[relay.Constant][245] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][246] /* ty=Tensor[(256), float16] */, meta[relay.Constant][247] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %594 = fn (%p0107: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p1101: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %587 = (%p0107, %p1101) /* ty=(Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) span=aten::cat_9:0:0 */;
+    concatenate(%587, axis=3) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %595 = %594(%593, %521) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %596 = fn (%p0106: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p1100: Tensor[(256, 1, 1, 512), float16] /* ty=Tensor[(256, 1, 1, 512), float16] */, %p291: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p389: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %583 = nn.conv2d(%p0106, %p1100, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %584 = multiply(%583, %p291) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %585 = add(%584, %p389) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %586 = sigmoid(%585) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%585, %586) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(256, 1, 1, 512), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %597 = %596(%595, meta[relay.Constant][248] /* ty=Tensor[(256, 1, 1, 512), float16] */, meta[relay.Constant][249] /* ty=Tensor[(256), float16] */, meta[relay.Constant][250] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %598 = fn (%p0105: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p199: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p290: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p388: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %579 = nn.conv2d(%p0105, %p199, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %580 = multiply(%579, %p290) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %581 = add(%580, %p388) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %582 = sigmoid(%581) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%581, %582) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %599 = %598(%597, meta[relay.Constant][251] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][252] /* ty=Tensor[(256), float16] */, meta[relay.Constant][253] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %600 = fn (%p0104: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p198: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p289: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p387: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %575 = nn.conv2d(%p0104, %p198, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %576 = multiply(%575, %p289) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %577 = add(%576, %p387) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %578 = sigmoid(%577) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%577, %578) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %601 = %600(%599, meta[relay.Constant][254] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][255] /* ty=Tensor[(256), float16] */, meta[relay.Constant][256] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %602 = fn (%p0103: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p197: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p288: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p386: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %571 = nn.conv2d(%p0103, %p197, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %572 = multiply(%571, %p288) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %573 = add(%572, %p386) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %574 = sigmoid(%573) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%573, %574) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %603 = %602(%601, meta[relay.Constant][257] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][258] /* ty=Tensor[(256), float16] */, meta[relay.Constant][259] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %604 = fn (%p0102: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p196: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p287: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p385: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %567 = nn.conv2d(%p0102, %p196, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %568 = multiply(%567, %p287) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %569 = add(%568, %p385) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %570 = sigmoid(%569) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%569, %570) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %605 = %604(%603, meta[relay.Constant][260] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][261] /* ty=Tensor[(256), float16] */, meta[relay.Constant][262] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %606 = fn (%p0101: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p195: Tensor[(256, 1, 1, 256), float16] /* ty=Tensor[(256, 1, 1, 256), float16] */, %p286: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p384: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %563 = nn.conv2d(%p0101, %p195, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %564 = multiply(%563, %p286) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %565 = add(%564, %p384) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %566 = sigmoid(%565) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%565, %566) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 1, 1, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %607 = %606(%605, meta[relay.Constant][263] /* ty=Tensor[(256, 1, 1, 256), float16] */, meta[relay.Constant][264] /* ty=Tensor[(256), float16] */, meta[relay.Constant][265] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %608 = fn (%p0100: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p194: Tensor[(256, 3, 3, 256), float16] /* ty=Tensor[(256, 3, 3, 256), float16] */, %p285: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p383: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %559 = nn.conv2d(%p0100, %p194, padding=[1, 1, 1, 1], channels=256, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %560 = multiply(%559, %p285) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %561 = add(%560, %p383) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %562 = sigmoid(%561) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%561, %562) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(256, 3, 3, 256), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %613 = fn (%p0109: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p1103: Tensor[(256, 1, 1, 512), float16] /* ty=Tensor[(256, 1, 1, 512), float16] */, %p293: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, %p391: Tensor[(256), float16] /* ty=Tensor[(256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 256), float16] {
+    %609 = nn.conv2d(%p0109, %p1103, padding=[0, 0, 0, 0], channels=256, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %610 = multiply(%609, %p293) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %611 = add(%610, %p391) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    %612 = sigmoid(%611) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+    multiply(%611, %612) /* ty=Tensor[(16, 14, 14, 256), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(256, 1, 1, 512), float16], Tensor[(256), float16], Tensor[(256), float16]) -> Tensor[(16, 14, 14, 256), float16] */;
+  %614 = %608(%607, meta[relay.Constant][266] /* ty=Tensor[(256, 3, 3, 256), float16] */, meta[relay.Constant][267] /* ty=Tensor[(256), float16] */, meta[relay.Constant][268] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %615 = %613(%595, meta[relay.Constant][269] /* ty=Tensor[(256, 1, 1, 512), float16] */, meta[relay.Constant][270] /* ty=Tensor[(256), float16] */, meta[relay.Constant][271] /* ty=Tensor[(256), float16] */) /* ty=Tensor[(16, 14, 14, 256), float16] */;
+  %616 = fn (%p099: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, %p193: Tensor[(16, 14, 14, 256), float16] /* ty=Tensor[(16, 14, 14, 256), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %558 = (%p099, %p193) /* ty=(Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) span=aten::cat_10:0:0 */;
+    concatenate(%558, axis=3) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 256), float16], Tensor[(16, 14, 14, 256), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %617 = %616(%614, %615) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %618 = fn (%p098: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p192: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p284: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p382: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 512), float16] {
+    %554 = nn.conv2d(%p098, %p192, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %555 = multiply(%554, %p284) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %556 = add(%555, %p382) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    %557 = sigmoid(%556) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+    multiply(%556, %557) /* ty=Tensor[(16, 14, 14, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 14, 14, 512), float16] */;
+  %619 = %618(%617, meta[relay.Constant][272] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][273] /* ty=Tensor[(512), float16] */, meta[relay.Constant][274] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 14, 14, 512), float16] */;
+  %620 = fn (%p097: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p191: Tensor[(255, 1, 1, 512), float16] /* ty=Tensor[(255, 1, 1, 512), float16] */, %p283: Tensor[(1, 1, 1, 255), float16] /* ty=Tensor[(1, 1, 1, 255), float16] */, Primitive=1) -> Tensor[(16, 14, 14, 255), float16] {
+    %553 = nn.conv2d(%p097, %p191, padding=[0, 0, 0, 0], channels=255, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 14, 14, 255), float16] */;
+    add(%553, %p283) /* ty=Tensor[(16, 14, 14, 255), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(255, 1, 1, 512), float16], Tensor[(1, 1, 1, 255), float16]) -> Tensor[(16, 14, 14, 255), float16] */;
+  %621 = %620(%619, meta[relay.Constant][275] /* ty=Tensor[(255, 1, 1, 512), float16] */, meta[relay.Constant][276] /* ty=Tensor[(1, 1, 1, 255), float16] */) /* ty=Tensor[(16, 14, 14, 255), float16] */;
+  %622 = fn (%p096: Tensor[(16, 14, 14, 255), float16] /* ty=Tensor[(16, 14, 14, 255), float16] */, Primitive=1) -> Tensor[(16, 3, 14, 14, 85), float16] {
+    %551 = layout_transform(%p096, src_layout="NHWC", dst_layout="NCHW") /* ty=Tensor[(16, 255, 14, 14), float16] */;
+    %552 = reshape(%551, newshape=[16, 3, 85, 14, 14]) /* ty=Tensor[(16, 3, 85, 14, 14), float16] */;
+    transpose(%552, axes=[0, 1, 3, 4, 2]) /* ty=Tensor[(16, 3, 14, 14, 85), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 255), float16]) -> Tensor[(16, 3, 14, 14, 85), float16] */;
+  %664 = fn (%p0122: Tensor[(16, 14, 14, 512), float16] /* ty=Tensor[(16, 14, 14, 512), float16] */, %p1115: Tensor[(512, 3, 3, 512), float16] /* ty=Tensor[(512, 3, 3, 512), float16] */, %p2103: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p3100: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %660 = nn.conv2d(%p0122, %p1115, strides=[2, 2], padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %661 = multiply(%660, %p2103) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %662 = add(%661, %p3100) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %663 = sigmoid(%662) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%662, %663) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 14, 14, 512), float16], Tensor[(512, 3, 3, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %665 = %664(%619, meta[relay.Constant][277] /* ty=Tensor[(512, 3, 3, 512), float16] */, meta[relay.Constant][278] /* ty=Tensor[(512), float16] */, meta[relay.Constant][279] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %666 = fn (%p0121: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1114: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 1024), float16] {
+    %659 = (%p0121, %p1114) /* ty=(Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) span=aten::cat_11:0:0 */;
+    concatenate(%659, axis=3) /* ty=Tensor[(16, 7, 7, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 1024), float16] */;
+  %667 = %666(%665, %493) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+  %668 = fn (%p0120: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p1113: Tensor[(512, 1, 1, 1024), float16] /* ty=Tensor[(512, 1, 1, 1024), float16] */, %p2102: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p399: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %655 = nn.conv2d(%p0120, %p1113, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %656 = multiply(%655, %p2102) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %657 = add(%656, %p399) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %658 = sigmoid(%657) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%657, %658) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(512, 1, 1, 1024), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %669 = %668(%667, meta[relay.Constant][280] /* ty=Tensor[(512, 1, 1, 1024), float16] */, meta[relay.Constant][281] /* ty=Tensor[(512), float16] */, meta[relay.Constant][282] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %670 = fn (%p0119: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1112: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p2101: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p398: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %651 = nn.conv2d(%p0119, %p1112, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %652 = multiply(%651, %p2101) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %653 = add(%652, %p398) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %654 = sigmoid(%653) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%653, %654) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %671 = %670(%669, meta[relay.Constant][283] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][284] /* ty=Tensor[(512), float16] */, meta[relay.Constant][285] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %672 = fn (%p0118: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1111: Tensor[(512, 3, 3, 512), float16] /* ty=Tensor[(512, 3, 3, 512), float16] */, %p2100: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p397: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %647 = nn.conv2d(%p0118, %p1111, padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %648 = multiply(%647, %p2100) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %649 = add(%648, %p397) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %650 = sigmoid(%649) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%649, %650) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 3, 3, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %673 = %672(%671, meta[relay.Constant][286] /* ty=Tensor[(512, 3, 3, 512), float16] */, meta[relay.Constant][287] /* ty=Tensor[(512), float16] */, meta[relay.Constant][288] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %674 = fn (%p0117: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1110: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p299: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p396: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %643 = nn.conv2d(%p0117, %p1110, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %644 = multiply(%643, %p299) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %645 = add(%644, %p396) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %646 = sigmoid(%645) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%645, %646) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %675 = %674(%673, meta[relay.Constant][289] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][290] /* ty=Tensor[(512), float16] */, meta[relay.Constant][291] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %676 = fn (%p0116: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1109: Tensor[(512, 3, 3, 512), float16] /* ty=Tensor[(512, 3, 3, 512), float16] */, %p298: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p395: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %639 = nn.conv2d(%p0116, %p1109, padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %640 = multiply(%639, %p298) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %641 = add(%640, %p395) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %642 = sigmoid(%641) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%641, %642) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 3, 3, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %677 = %676(%675, meta[relay.Constant][292] /* ty=Tensor[(512, 3, 3, 512), float16] */, meta[relay.Constant][293] /* ty=Tensor[(512), float16] */, meta[relay.Constant][294] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %678 = fn (%p0115: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1108: Tensor[(512, 1, 1, 512), float16] /* ty=Tensor[(512, 1, 1, 512), float16] */, %p297: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p394: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %635 = nn.conv2d(%p0115, %p1108, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %636 = multiply(%635, %p297) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %637 = add(%636, %p394) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %638 = sigmoid(%637) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%637, %638) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 1, 1, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %679 = %678(%677, meta[relay.Constant][295] /* ty=Tensor[(512, 1, 1, 512), float16] */, meta[relay.Constant][296] /* ty=Tensor[(512), float16] */, meta[relay.Constant][297] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %680 = fn (%p0114: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1107: Tensor[(512, 3, 3, 512), float16] /* ty=Tensor[(512, 3, 3, 512), float16] */, %p296: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p393: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %631 = nn.conv2d(%p0114, %p1107, padding=[1, 1, 1, 1], channels=512, kernel_size=[3, 3], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %632 = multiply(%631, %p296) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %633 = add(%632, %p393) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %634 = sigmoid(%633) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%633, %634) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(512, 3, 3, 512), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %685 = fn (%p0123: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p1116: Tensor[(512, 1, 1, 1024), float16] /* ty=Tensor[(512, 1, 1, 1024), float16] */, %p2104: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, %p3101: Tensor[(512), float16] /* ty=Tensor[(512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 512), float16] {
+    %681 = nn.conv2d(%p0123, %p1116, padding=[0, 0, 0, 0], channels=512, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %682 = multiply(%681, %p2104) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %683 = add(%682, %p3101) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    %684 = sigmoid(%683) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+    multiply(%683, %684) /* ty=Tensor[(16, 7, 7, 512), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(512, 1, 1, 1024), float16], Tensor[(512), float16], Tensor[(512), float16]) -> Tensor[(16, 7, 7, 512), float16] */;
+  %686 = %680(%679, meta[relay.Constant][298] /* ty=Tensor[(512, 3, 3, 512), float16] */, meta[relay.Constant][299] /* ty=Tensor[(512), float16] */, meta[relay.Constant][300] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %687 = %685(%667, meta[relay.Constant][301] /* ty=Tensor[(512, 1, 1, 1024), float16] */, meta[relay.Constant][302] /* ty=Tensor[(512), float16] */, meta[relay.Constant][303] /* ty=Tensor[(512), float16] */) /* ty=Tensor[(16, 7, 7, 512), float16] */;
+  %688 = fn (%p0113: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, %p1106: Tensor[(16, 7, 7, 512), float16] /* ty=Tensor[(16, 7, 7, 512), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 1024), float16] {
+    %630 = (%p0113, %p1106) /* ty=(Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) span=aten::cat_12:0:0 */;
+    concatenate(%630, axis=3) /* ty=Tensor[(16, 7, 7, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 512), float16], Tensor[(16, 7, 7, 512), float16]) -> Tensor[(16, 7, 7, 1024), float16] */;
+  %689 = %688(%686, %687) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+  %690 = fn (%p0112: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p1105: Tensor[(1024, 1, 1, 1024), float16] /* ty=Tensor[(1024, 1, 1, 1024), float16] */, %p295: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, %p392: Tensor[(1024), float16] /* ty=Tensor[(1024), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 1024), float16] {
+    %626 = nn.conv2d(%p0112, %p1105, padding=[0, 0, 0, 0], channels=1024, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %627 = multiply(%626, %p295) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %628 = add(%627, %p392) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    %629 = sigmoid(%628) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+    multiply(%628, %629) /* ty=Tensor[(16, 7, 7, 1024), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(1024, 1, 1, 1024), float16], Tensor[(1024), float16], Tensor[(1024), float16]) -> Tensor[(16, 7, 7, 1024), float16] */;
+  %691 = %690(%689, meta[relay.Constant][304] /* ty=Tensor[(1024, 1, 1, 1024), float16] */, meta[relay.Constant][305] /* ty=Tensor[(1024), float16] */, meta[relay.Constant][306] /* ty=Tensor[(1024), float16] */) /* ty=Tensor[(16, 7, 7, 1024), float16] */;
+  %692 = fn (%p0111: Tensor[(16, 7, 7, 1024), float16] /* ty=Tensor[(16, 7, 7, 1024), float16] */, %p1104: Tensor[(255, 1, 1, 1024), float16] /* ty=Tensor[(255, 1, 1, 1024), float16] */, %p294: Tensor[(1, 1, 1, 255), float16] /* ty=Tensor[(1, 1, 1, 255), float16] */, Primitive=1) -> Tensor[(16, 7, 7, 255), float16] {
+    %625 = nn.conv2d(%p0111, %p1104, padding=[0, 0, 0, 0], channels=255, kernel_size=[1, 1], data_layout="NHWC", kernel_layout="OHWI", out_dtype="float16") /* ty=Tensor[(16, 7, 7, 255), float16] */;
+    add(%625, %p294) /* ty=Tensor[(16, 7, 7, 255), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 1024), float16], Tensor[(255, 1, 1, 1024), float16], Tensor[(1, 1, 1, 255), float16]) -> Tensor[(16, 7, 7, 255), float16] */;
+  %693 = %692(%691, meta[relay.Constant][307] /* ty=Tensor[(255, 1, 1, 1024), float16] */, meta[relay.Constant][308] /* ty=Tensor[(1, 1, 1, 255), float16] */) /* ty=Tensor[(16, 7, 7, 255), float16] */;
+  %694 = fn (%p0110: Tensor[(16, 7, 7, 255), float16] /* ty=Tensor[(16, 7, 7, 255), float16] */, Primitive=1) -> Tensor[(16, 3, 7, 7, 85), float16] {
+    %623 = layout_transform(%p0110, src_layout="NHWC", dst_layout="NCHW") /* ty=Tensor[(16, 255, 7, 7), float16] */;
+    %624 = reshape(%623, newshape=[16, 3, 85, 7, 7]) /* ty=Tensor[(16, 3, 85, 7, 7), float16] */;
+    transpose(%624, axes=[0, 1, 3, 4, 2]) /* ty=Tensor[(16, 3, 7, 7, 85), float16] */
+  } /* ty=fn (Tensor[(16, 7, 7, 255), float16]) -> Tensor[(16, 3, 7, 7, 85), float16] */;
+  %695 = %550(%549) /* ty=Tensor[(16, 3, 28, 28, 85), float16] */;
+  %696 = %622(%621) /* ty=Tensor[(16, 3, 14, 14, 85), float16] */;
+  %697 = %694(%693) /* ty=Tensor[(16, 3, 7, 7, 85), float16] */;
+  (%695, %696, %697) /* ty=(Tensor[(16, 3, 28, 28, 85), float16], Tensor[(16, 3, 14, 14, 85), float16], Tensor[(16, 3, 7, 7, 85), float16]) */
+}
+
+

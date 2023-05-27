@@ -1,0 +1,458 @@
+import re
+from tensor import *
+
+onnx2akg = {
+    "nn.dense": "Matmul",
+    "transpose": "Transpose",
+    "mean": "ReduceMean",
+    "concatenate": "Concat",
+    "split": "Split",
+    "nn.max_pool2d": "Pool2D",
+    "broadcast_to": "BroadcastTo",
+    "image.resize2d": "Resize",
+    "rsqrt": "Rsqrt",
+    "nn.avg_pool2d": "Pool2D",
+    "nn.conv2d": "Conv2D",
+    "nn.relu": "Relu",
+    "add": "Add",
+    "clip": "Clip",
+    "nn.adaptive_avg_pool2d": "Pool2D",
+    "layout_transform": "LayoutTransform",
+    "subtract": "Sub",
+    "cast": "Cast",
+    "reshape": "Reshape",
+    "erf": "Erf",
+    "fast_erf": "Erf",
+    "fast_tanh": "Tanh",
+    "nn.fast_softmax": "Softmax",
+    "nn.batch_matmul": "BatchMatmul",
+    "take": "Take",
+    "multiply": "Mul",
+    "divide": "Div",
+    "squeeze": "Reshape",
+    "nn.softmax": "Softmax",
+    "variance": "Variance",
+    "sigmoid": "Sigmoid"
+}
+
+unparsedOps = set()
+
+class OpDesc:
+    def __init__(self, input_str, inputs, outputs):
+        self.input_desc = inputs
+        self.output_desc = outputs
+        self.parse(input_str)
+
+    def to_dict(self):
+        return {
+            "attr": self.attr,
+            "name": self.akg_name,
+            "input_desc": [[tensor.to_op_dict(f"input_{index}")] for index, tensor in enumerate(self.input_desc)],
+            "output_desc": [tensor.to_op_dict(f"output_{index}") for index, tensor in enumerate(self.output_desc)]
+        }
+        
+    def parse(self, input_str):
+        target = re.search(r'    %\d+ = ', input_str)
+        
+        if len(re.findall('%\d+ = %p\d+\.\d', input_str)) > 0:
+            self.akg_name = ''
+            return
+        
+        if target != None:
+            input_str = input_str[target.end():]
+            self.name = input_str[:input_str.find('(')].strip()
+        if "=" not in input_str[:input_str.find('(')].strip():
+            self.name = input_str[:input_str.find('(')].strip()
+        
+        if self.name not in onnx2akg:
+            unparsedOps.add(self.name)
+            self.akg_name = ''
+            return
+        
+        self.akg_name = onnx2akg[self.name]
+        
+        if self.name == "transpose":
+            self.axes = list(map(int, re.findall(r'axes=\[(.*?)\]', input_str)[0].split(', ')))
+        
+        elif self.name == "mean":
+            self.axes = list(map(int, re.findall(r'axis=\[(.*?)\]', input_str)[0].split(', ')))
+            self.keepdims = len(re.findall(r'keepdims=True', input_str)) != 0
+        
+        elif self.name == "concatenate":
+            self.axis =  int(re.findall(r'axis=(\d+)', input_str)[0])
+            self.input_desc = self.input_desc[0].op.input_desc
+        
+        elif self.name == "split":
+            self.axis = int(re.findall(r'axis=(-?\d+)', input_str)[0])
+            if self.axis == -1:
+                self.axis = len(self.input_desc[0].shape) - 1
+            old_idx = int(re.findall(r'output_0_(\d+)', self.output_desc[0].tensor_name)[0])
+            self.output_desc = [TensorDesc(f"output_0_{i+old_idx}", self.output_desc[0].data_type, shape, self.output_desc[0].format) for i, shape in enumerate(self.output_desc[0].shape)]
+        
+        elif self.name == "nn.max_pool2d" or self.name == "nn.avg_pool2d":
+            self.pool_type = re.findall(r'(max|avg)', self.name)[0]
+            self.data_layout = re.findall(r'layout="(.*?)"', input_str)[0]
+            self.kernel_size = list(map(int, re.findall(r'pool_size=\[(.*?)\]', input_str)[0].split(', ')))
+            self.strides = [0, 0]
+            self.is_global = False
+            if "strides=" in input_str:
+                self.strides = list(map(int, re.findall(r'strides=\[(.*?)\]', input_str)[0].split(', ')))
+            self.pad = list(map(int, re.findall(r'padding=\[(.*?)\]', input_str)[0].split(', ')))
+        
+        elif self.name == "nn.conv2d":
+            self.kernel_size = list(map(int, re.findall(r'kernel_size=\[(.*?)\]', input_str)[0].split(', ')))
+            self.strides = [0, 0]
+            if "strides=" in input_str:
+                self.strides = list(map(int, re.findall(r'strides=\[(.*?)\]', input_str)[0].split(', ')))
+            self.pad = list(map(int, re.findall(r'padding=\[(.*?)\]', input_str)[0].split(', ')))
+            self.is_depth_wise = False
+            if "groups=" in input_str:
+                groups = re.findall(r'groups=(\d+)', input_str)[0]
+                channels = re.findall(r'channels=(\d+)', input_str)[0]
+                if groups != channels:
+                    self.akg_name = ''
+                else:
+                    self.is_depth_wise = True
+            if self.input_desc[0].shape[-1] % 16 != 0 or self.input_desc[0].shape[0] % 16 != 0:
+                self.akg_name = ''
+        
+        elif self.name == "nn.adaptive_avg_pool2d":
+            self.pool_type = "avg"
+            self.data_layout = re.findall(r'layout="(.*?)"', input_str)[0]
+            output_size = list(map(int, re.findall(r'output_size=\[(.*?)\]', input_str)[0].split(', ')))
+            if output_size[0] == 1:
+                self.is_global = True
+                self.kernel_size = None
+                self.strides = None
+                self.pad = None
+            else:
+                self.akg_name = ''
+        
+        elif self.name == "layout_transform":
+            self.src_format = re.findall(r'src_layout="(.*?)"', input_str)[0]
+            self.dst_format = re.findall(r'dst_layout="(.*?)"', input_str)[0]
+        
+        elif self.name == "reshape":
+            self.shape = self.output_desc[0].shape
+            if self.input_desc[0].shape == self.output_desc[0].shape:
+                self.akg_name = ''
+        
+        elif self.name == "take":
+            self.index = re.findall(r', (.*?), ', input_str)[0].split()[0]
+            self.take_axis = int(re.findall(r'axis=(-?\d+)', input_str)[0])
+        
+        elif self.name == "squeeze":
+            self.shape = self.output_desc[0].shape
+            if self.input_desc[0].shape == self.output_desc[0].shape:
+                self.akg_name = ''
+        
+        elif self.name == "variance":
+            self.axis = int(re.findall(r'axis=\[(-?\d+)\]', input_str)[0])
+            if self.axis == -1:
+                self.axis = len(self.input_desc[0].shape) - 1
+    
+    @property
+    def attr(self):
+        if self.akg_name == "Add" or self.akg_name == "Sub" or self.akg_name == "Mul" or self.akg_name == "Div" or \
+            self.akg_name == "Relu" or self.akg_name == "Sigmoid" or self.akg_name == "Erf" or self.akg_name == "BroadcastTo" or \
+            self.akg_name == "Rsqrt" or self.akg_name == "Softmax" or self.akg_name == "Resize":
+            return None
+        
+        elif self.akg_name == "Transpose":
+            return [
+                {
+                    "data_type": "listInt",
+                    "name": "perm",
+                    "value": self.axes
+                }
+            ]
+        
+        elif self.akg_name == "ReduceMean":
+            return [
+                {
+                    "data_type": "bool",
+                    "name": "enable_atomic_add",
+                    "value": True
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "axis",
+                    "value": self.axes
+                },
+                {
+                    "data_type": "bool",
+                    "name": "keep_dims",
+                    "value": self.keepdims
+                }
+            ]
+            
+        elif self.akg_name == "PadAkg":
+            return [
+                {
+                    "data_type": "int",
+                    "name": "pad_val",
+                    "value": 0
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "head",
+                    "value": self.pad_head
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "tail",
+                    "value": self.pad_tail
+                }
+            ]
+        
+        elif self.akg_name == "Concat":
+            return [
+                {
+                    "data_type": "int",
+                    "name": "axis",
+                    "value": self.axis
+                }
+            ]
+            
+        elif self.akg_name == "Split":
+            return [
+                {
+                    "data_type": "int",
+                    "name": "axis",
+                    "value": self.axis
+                },
+                {
+                    "data_type": "int",
+                    "name": "output_num",
+                    "value": len(self.output_desc)
+                }
+            ]
+        
+        elif self.akg_name == "Pool2D":
+            return [
+                {
+                    "data_type": "bool",
+                    "name": "global",
+                    "value": self.is_global,
+                },
+                {
+                    "data_type": "str",
+                    "name": "pool_type",
+                    "value": self.pool_type
+                },
+                {
+                    "data_type": "str",
+                    "name": "data_layout",
+                    "value": self.data_layout
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "kernel_size",
+                    "value": self.kernel_size
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "strides",
+                    "value": self.strides
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "pad",
+                    "value": self.pad
+                },
+                {
+                    "data_type": "int",
+                    "name": "round_mode",
+                    "value": 0
+                }
+            ]
+            
+        elif self.akg_name == "Conv2D":
+            if self.is_depth_wise:
+                return [
+                    {
+                        "data_type": "str",
+                        "name": "format",
+                        "value": "NHWC"
+                    },
+                    {
+                        "data_type": "listInt",
+                        "name": "kernel_size",
+                        "value": self.kernel_size
+                    },
+                    {
+                        "data_type": "listInt",
+                        "name": "stride",
+                        "value": self.strides * 2
+                    },
+                    {
+                        "data_type": "listInt",
+                        "name": "pad",
+                        "value": self.pad
+                    },
+                    {
+                        "data_type": "listInt",
+                        "name": "pad_list",
+                        "value": self.pad
+                    },
+                    {
+                        "data_type": "listInt",
+                        "name": "dilation",
+                        "value": [1, 1, 1, 1]
+                    },
+                    {
+                        "data_type": "bool",
+                        "name": "is_depth_wise",
+                        "value": self.is_depth_wise
+                    }
+                ]
+            return [
+                {
+                    "data_type": "str",
+                    "name": "format",
+                    "value": "NHWC"
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "kernel_size",
+                    "value": self.kernel_size
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "stride",
+                    "value": self.strides * 2
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "pad",
+                    "value": self.pad
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "pad_list",
+                    "value": self.pad
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "dilation",
+                    "value": [1, 1, 1, 1]
+                }
+            ]
+        
+        elif self.akg_name == "Matmul" or self.akg_name == "BatchMatmul":
+            return [
+                {
+                    "data_type": "str",
+                    "name": "right_format",
+                    "value": "DefaultFormat"
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_x2",
+                    "value": True
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_b",
+                    "value": True
+                },
+                {
+                    "data_type": "str",
+                    "name": "left_format",
+                    "value": "DefaultFormat"
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_x1",
+                    "value": False
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_a",
+                    "value": False
+                },
+                {
+                    "data_type": "bool",
+                    "name": "Akg",
+                    "value": True
+                },
+                {
+                    "data_type": "str",
+                    "name": "dst_type",
+                    "value": self.output_desc[0].data_type
+                }
+            ]
+            
+        elif self.akg_name == "Clip":
+            return [
+                {
+                    "data_type": "float16",
+                    "name": "min_value",
+                    "value": 0
+                },
+                {
+                    "data_type": "float16",
+                    "name": "max_value",
+                    "value": 6
+                }
+            ]
+        
+        elif self.akg_name == "LayoutTransform":
+            return [
+                {
+                    "data_type": "str",
+                    "name": "src_format",
+                    "value": self.src_format
+                },
+                {
+                    "data_type": "str",
+                    "name": "dst_format",
+                    "value": self.dst_format
+                }
+            ]
+            
+        elif self.akg_name == "Cast":
+            return [
+                {
+                    "data_type": "str",
+                    "name": "dst_type",
+                    "value": self.output_desc[0].data_type
+                }
+            ]
+            
+        elif self.akg_name == "Reshape":
+            return [
+                {
+                    "data_type": "listInt",
+                    "name": "shape",
+                    "value": self.shape
+                }
+            ]
+            
+        elif self.akg_name == "Take":
+            return [
+                {
+                    "data_type": "int",
+                    "name": "index",
+                    "value": self.index
+                },
+                {
+                    "data_type": "int",
+                    "name": "axis",
+                    "value": self.take_axis
+                }
+            ]
+            
+        elif self.akg_name == "Variance":
+            return [
+                {
+                    "data_type": "int",
+                    "name": "axis",
+                    "value": self.axis
+                },
+                {
+                    "data_type": "bool",
+                    "name": "keep_dims",
+                    "value": True
+                }
+            ]            
