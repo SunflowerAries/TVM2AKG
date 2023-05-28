@@ -1,5 +1,6 @@
 import re
 from tensor import *
+import copy
 
 onnx2akg = {
     "nn.dense": "Matmul",
@@ -9,7 +10,7 @@ onnx2akg = {
     "split": "Split",
     "nn.max_pool2d": "Pool2D",
     "broadcast_to": "BroadcastTo",
-    "image.resize2d": "Resize",
+    # "image.resize2d": "Resize",
     "rsqrt": "Rsqrt",
     "nn.avg_pool2d": "Pool2D",
     "nn.conv2d": "Conv2D",
@@ -41,16 +42,124 @@ class OpDesc:
     def __init__(self, input_str, inputs, outputs):
         self.input_desc = inputs
         self.output_desc = outputs
-        self.parse(input_str)
+        if input_str != None:
+            self.parse(input_str)
 
     def to_dict(self):
+        if self.akg_name == "Concat":
+            return {
+                "attr": self.attr,
+                "name": self.akg_name,
+                "input_desc": [[tensor.to_op_dict(f"input_{index}") for index, tensor in enumerate(self.input_desc)]],
+                "output_desc": [tensor.to_op_dict(f"output_{index}") for index, tensor in enumerate(self.output_desc)]
+            }
         return {
             "attr": self.attr,
             "name": self.akg_name,
             "input_desc": [[tensor.to_op_dict(f"input_{index}")] for index, tensor in enumerate(self.input_desc)],
             "output_desc": [tensor.to_op_dict(f"output_{index}") for index, tensor in enumerate(self.output_desc)]
         }
+    
+    def extend(self, cnt):
+        if self.akg_name == "ReduceMean":
+            sum_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
+            reduce_sum = OpDesc(None, self.input_desc, [sum_tensor])
+            reduce_sum.axes = [self.axes]
+            reduce_sum.keepdims = self.keepdims
+            reduce_sum.akg_name = "ReduceSum"
+            cnt += 1
+            
+            div = OpDesc(None, self.input_desc + [sum_tensor], self.output_desc)
+            self.output_desc[0].tensor_name = f"output_0_{cnt}"
+            div.akg_name = "Div"
+            cnt += 1
+            return [reduce_sum, div], cnt
+    
+        elif self.akg_name == "Sigmoid":
+            const_one = TensorDesc("const_one", self.output_desc[0].data_type, [1])
+            const_one.value = 1
+            
+            neg_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
+            neg = OpDesc(None, self.input_desc, [neg_tensor])
+            neg.akg_name = "Neg"
+            cnt += 1
+            
+            exp_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
+            exp = OpDesc(None, [neg_tensor], [exp_tensor])
+            exp.akg_name = "Exp"
+            cnt += 1
+            
+            add_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
+            add = OpDesc(None, [const_one, exp_tensor], [add_tensor])
+            add.akg_name = "Add"
+            cnt += 1
+            
+            div = OpDesc(None, [const_one, add_tensor], self.output_desc)
+            div.akg_name = "Div"
+            self.output_desc[0].tensor_name = f"output_0_{cnt}"
+            cnt += 1
+            return [neg, exp, add, div], cnt
         
+        elif self.akg_name == "Softmax":
+            reduce_shape = copy.deepcopy(self.output_desc[0].shape)
+            reduce_shape[-1] = 1
+            max_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, reduce_shape, self.output_desc[0].format)
+            reduce_max = OpDesc(None, self.input_desc, [max_tensor])
+            reduce_max.axes = [len(reduce_shape) - 1]
+            reduce_max.keepdims = True
+            reduce_max.akg_name = "ReduceMax"
+            cnt += 1
+            
+            sub_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
+            sub = OpDesc(None, self.input_desc + [max_tensor], [sub_tensor])
+            sub.akg_name = "Sub"
+            cnt += 1
+            
+            exp_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
+            exp = OpDesc(None, [sub_tensor], [exp_tensor])
+            exp.akg_name = "Exp"
+            cnt += 1
+            
+            sum_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, reduce_shape, self.output_desc[0].format)
+            reduce_sum = OpDesc(None, [exp_tensor], [sum_tensor])
+            reduce_sum.axes = [len(reduce_shape) - 1]
+            reduce_sum.keepdims = True
+            reduce_sum.akg_name = "ReduceSum"
+            cnt += 1
+            
+            div = OpDesc(None, [exp_tensor, sum_tensor], self.output_desc)
+            div.akg_name = "Div"
+            self.output_desc[0].tensor_name = f"output_0_{cnt}"
+            cnt += 1
+            return [reduce_max, sub, exp, reduce_sum, div], cnt
+        
+        elif self.akg_name == "Variance":
+            sub_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.input_desc[0].shape, self.output_desc[0].format)
+            sub = OpDesc(None, self.input_desc, [sub_tensor])
+            sub.akg_name = "Sub"
+            cnt += 1
+            
+            mul_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.input_desc[0].shape, self.output_desc[0].format)
+            mul = OpDesc(None, [sub_tensor, sub_tensor], [mul_tensor])
+            mul.akg_name = "Mul"
+            cnt += 1
+            
+            sum_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
+            reduce_sum = OpDesc(None, [mul_tensor], [sum_tensor])
+            reduce_sum.axes = [len(self.output_desc[0].shape) - 1]
+            reduce_sum.keepdims = True
+            reduce_sum.akg_name = "ReduceSum"
+            cnt += 1
+            
+            const_value = TensorDesc("const_value", self.output_desc[0].data_type, [1])
+            const_value.value = 1 / self.input_desc[0].shape[-1]
+            
+            div = OpDesc(None, [sum_tensor, const_value], self.output_desc)
+            div.akg_name = "Mul"
+            self.output_desc[0].tensor_name = f"output_0_{cnt}"
+            cnt += 1
+            return [sub, mul, reduce_sum, div], cnt
+    
     def parse(self, input_str):
         target = re.search(r'    %\d+ = ', input_str)
         
@@ -93,7 +202,7 @@ class OpDesc:
             self.pool_type = re.findall(r'(max|avg)', self.name)[0]
             self.data_layout = re.findall(r'layout="(.*?)"', input_str)[0]
             self.kernel_size = list(map(int, re.findall(r'pool_size=\[(.*?)\]', input_str)[0].split(', ')))
-            self.strides = [0, 0]
+            self.strides = [1, 1]
             self.is_global = False
             if "strides=" in input_str:
                 self.strides = list(map(int, re.findall(r'strides=\[(.*?)\]', input_str)[0].split(', ')))
@@ -101,7 +210,7 @@ class OpDesc:
         
         elif self.name == "nn.conv2d":
             self.kernel_size = list(map(int, re.findall(r'kernel_size=\[(.*?)\]', input_str)[0].split(', ')))
-            self.strides = [0, 0]
+            self.strides = [1, 1]
             if "strides=" in input_str:
                 self.strides = list(map(int, re.findall(r'strides=\[(.*?)\]', input_str)[0].split(', ')))
             self.pad = list(map(int, re.findall(r'padding=\[(.*?)\]', input_str)[0].split(', ')))
@@ -145,6 +254,10 @@ class OpDesc:
             self.shape = self.output_desc[0].shape
             if self.input_desc[0].shape == self.output_desc[0].shape:
                 self.akg_name = ''
+                
+        elif self.name == "broadcast_to":
+            if self.input_desc[0].shape == self.output_desc[0].shape:
+                self.akg_name = ''
         
         elif self.name == "variance":
             self.axis = int(re.findall(r'axis=\[(-?\d+)\]', input_str)[0])
@@ -154,8 +267,8 @@ class OpDesc:
     @property
     def attr(self):
         if self.akg_name == "Add" or self.akg_name == "Sub" or self.akg_name == "Mul" or self.akg_name == "Div" or \
-            self.akg_name == "Relu" or self.akg_name == "Sigmoid" or self.akg_name == "Erf" or self.akg_name == "BroadcastTo" or \
-            self.akg_name == "Rsqrt" or self.akg_name == "Softmax" or self.akg_name == "Resize":
+            self.akg_name == "Relu" or self.akg_name == "Erf" or self.akg_name == "BroadcastTo" or self.akg_name == "Rsqrt" or \
+            self.akg_name == "Neg" or self.akg_name == "Exp":
             return None
         
         elif self.akg_name == "Transpose":
@@ -167,7 +280,7 @@ class OpDesc:
                 }
             ]
         
-        elif self.akg_name == "ReduceMean":
+        elif self.akg_name == "ReduceSum" or self.akg_name == "ReduceMax":
             return [
                 {
                     "data_type": "bool",
@@ -211,6 +324,11 @@ class OpDesc:
                     "data_type": "int",
                     "name": "axis",
                     "value": self.axis
+                },
+                {
+                    "data_type": "int",
+                    "name": "inputNums",
+                    "value": len(self.input_desc)
                 }
             ]
             

@@ -6,7 +6,9 @@ opdict = {}
 
 def parse(lines):
     ops = []
+    params = set()
     tensors = {}
+    cnt = 0
 
     tensor_descs = re.findall(r'(%p\d+): Tensor\[(.*?), (float\d+|int\d+)\]', lines[0])
     scalar_descs = re.findall(r'(%p\d+): (float\d+|int\d+)', lines[0])
@@ -23,7 +25,7 @@ def parse(lines):
         scalar = TensorDesc(f"input_{i}", scalar_desc[1], [1], fmt)
         tensors[scalar_desc[0]] = scalar
     
-    for i, line in enumerate(lines[1:-1]):
+    for _, line in enumerate(lines[1:-1]):
 
         tensor_pattern = re.compile(r'%p\d+|%\d+')
         tensor_matches = tensor_pattern.findall(line)
@@ -50,7 +52,8 @@ def parse(lines):
         else:
             output_tensor = re.findall(r'ty=Tensor\[(.*?), (float\d+|int\d+)\]', line)[0]
             output_tensor = (list(map(int, output_tensor[0][1:-1].split(', '))), output_tensor[1])
-        output = TensorDesc(f"output_0_{i}", output_tensor[1], output_tensor[0], fmt)
+        output = TensorDesc(f"output_0_{cnt}", output_tensor[1], output_tensor[0], fmt)
+        output.is_output = True
         
         if " = " in line:
             tensors[tensor_matches[0]] = output
@@ -59,13 +62,23 @@ def parse(lines):
             inputs = [tensors[tensor] for tensor in tensor_matches]
         
         op = OpDesc(line, inputs, output if isinstance(output, list) else [output])
+        for input in inputs:
+            if input.is_output == False:
+                params.add(input)
         output.op = op
-        if op.akg_name != '':
-            ops.append(op)
         
-    return ops
+        if op.akg_name in ["ReduceMean", "Softmax", "Sigmoid", "Variance"]:
+            extended_op, cnt = op.extend(cnt)
+            output.op = extended_op[-1]
+            ops += extended_op
+        
+        elif op.akg_name != '':
+            ops.append(op)
+            cnt += 1
+        
+    return ops, params
 
-def to_json(ops):
+def to_json(ops, params):
     opname = "Fused_{}".format('_'.join([op.akg_name for op in ops]))
     
     hash_value = hash(str([i.shape for i in ops[0].input_desc])) + sys.maxsize + 1
@@ -81,7 +94,7 @@ def to_json(ops):
         "composite": True,
         "composite_graph": "68.283",
         "id": 0,
-        "input_desc": [[i.to_dict()] for i in ops[0].input_desc],
+        "input_desc": [[i.to_dict()] for i in params],
         "op": opname,
         "op_desc": [op.to_dict() for op in ops],
         "output_desc": [o.to_dict() for o in ops[-1].output_desc],
@@ -118,12 +131,12 @@ for filename in os.listdir(dirpath):
                 cnt += wz
                 continue
             
-            ops = parse(lines[cnt:cnt+wz])
+            ops, params = parse(lines[cnt:cnt+wz])
             if len(ops) > 0:
-                json_obj, visited = to_json(ops)
+                json_obj, visited = to_json(ops, params)
                 
                 if not visited: 
-                    json_name = os.path.join(infopath, json_obj['op'])
+                    json_name = os.path.join(infopath, json_obj['op'] + '.json')
                     with open(json_name, 'w') as json_file:
                         json_file.write(json.dumps(json_obj, indent=4))
             cnt += wz
