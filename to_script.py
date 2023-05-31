@@ -100,12 +100,9 @@ def transform(workload, input_shape):
             param = nd.array(param)
         relay_params[name] = param
 
-    
-    # print(relay_mod)
     with tvm.transform.PassContext(opt_level=3):
         seq = tvm.transform.Sequential([relay.transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"]})])
         relay_mod = seq(relay_mod)
-    # print(relay_mod)
     relay_mod = relay.transform.ToMixedPrecision("float16")(relay_mod)
     relay_mod = rewrite_reshape_gelu(relay_mod)
     if isinstance(relay_mod, RelayFunc):

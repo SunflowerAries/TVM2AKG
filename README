@@ -1,3 +1,41 @@
+set PYTHONPATH, we need TVM repo to get the relay ir output
+
+```
 export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+```
+
+use `to_script.py` to transform the model into relay, and apply necessary passes for inference situation, hint: you have to register new models in TVM's get_network function
+
+```
+mkdir -p workloads
 python3 to_script.py -w bert_large -bs 16 -t "cuda" > workloads/bert_log
+```
+
+use `count.py` to count kinds of ops then you can register new ops in op.py
+
+```
+python3 count.py
+```
+
+use `transform.py` to transform the ouputed relay ir to akg info for subsequent codegen
+
+```
 python3 transform.py
+```
+
+use `separate.py` to split infos into trainset and testset
+
+```
+python3 separate.py
+```
+
+use `auto_mindtricks.py` to generate mindtricks for fused conv/matmul operators' codegen
+
+```
+python3 auto_mindtricks.py
+```
+
+we have some assumption:
+- we will pad kernel for conv2d and tensor B for matmul when their n-axis(output channel size for conv2d) is not divisible by 16
+- for the model dataset we choose, output channel size of conv2d that not divisible by 16 only occurs in convs whose kernel size is 1x1, thus conv2d's original padding size is zero[important for akg codegen, since recently we only test one padding op for a backbone op, e.g., matmul, conv2d]
+- further, we have one another constraint at now that we only pad kernels whose n-axis is not divisible by 16 but divisbile by 8, the filtered out cases could be handled by isl schedule tree's isolate, but are not considered recently.

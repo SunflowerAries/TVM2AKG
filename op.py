@@ -1,6 +1,7 @@
 import re
 from tensor import *
 import copy
+import simple_colors
 
 onnx2akg = {
     "nn.dense": "Matmul",
@@ -38,6 +39,8 @@ onnx2akg = {
 
 unparsedOps = set()
 
+depthwise_omit = False
+
 class OpDesc:
     def __init__(self, input_str, inputs, outputs):
         self.input_desc = inputs
@@ -59,6 +62,48 @@ class OpDesc:
             "input_desc": [[tensor.to_op_dict(f"input_{index}")] for index, tensor in enumerate(self.input_desc)],
             "output_desc": [tensor.to_op_dict(f"output_{index}") for index, tensor in enumerate(self.output_desc)]
         }
+    
+    def get_pad(self):
+        if self.akg_name in ["Conv2D", "Matmul"]:
+            tensor_b = self.input_desc[1]
+            old_shape = tensor_b.shape[0]
+            new_shape = ((old_shape + 16) // 16) * 16
+            shapes = copy.deepcopy(tensor_b.shape)
+            shapes[0] = new_shape
+            pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+            pad = OpDesc(None, [tensor_b], [pad_tensor])
+            pad.akg_name = "PadAkg"
+            if self.akg_name == "Conv2D":
+                pad.pad_head = [0, 0, 0, 0]
+                pad.pad_tail = [new_shape - old_shape, 0, 0, 0]
+            else:
+                pad.pad_head = [0, 0]
+                pad.pad_tail = [new_shape - old_shape, 0]
+            self.input_desc[1] = pad_tensor
+            self.output_desc[0].shape[-1] = new_shape
+            return [pad, self]
+            
+        
+        # we need two operand
+        elif len(self.input_desc) > 1:
+            tensor_b = self.input_desc[1]
+            old_shape = tensor_b.shape[-1]
+            new_shape = ((old_shape + 16) // 16) * 16
+            shapes = copy.deepcopy(tensor_b.shape)
+            shapes[-1] = new_shape
+            pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+            pad = OpDesc(None, [tensor_b], [pad_tensor])
+            pad.akg_name = "PadAkg"
+            pad.pad_head = [0] * len(shapes)
+            pad.pad_tail = copy.deepcopy(pad.pad_head)
+            pad.pad_tail[-1] = new_shape - old_shape
+            self.input_desc[0].shape[-1] = new_shape
+            self.input_desc[1] = pad_tensor
+            self.output_desc[0].shape[-1] = new_shape
+            return [pad, self]
+        
+        else:
+            print("unknown paddedop:\n",  self.akg_name)
     
     def extend(self, cnt):
         if self.akg_name == "ReduceMean":
@@ -165,6 +210,7 @@ class OpDesc:
         
         if len(re.findall('%\d+ = %p\d+\.\d', input_str)) > 0:
             self.akg_name = ''
+            self.name = 'get_tuple'
             return
         
         if target != None:
@@ -218,12 +264,26 @@ class OpDesc:
             if "groups=" in input_str:
                 groups = re.findall(r'groups=(\d+)', input_str)[0]
                 channels = re.findall(r'channels=(\d+)', input_str)[0]
+                if depthwise_omit == True:
+                    self.akg_name = ''
                 if groups != channels:
                     self.akg_name = ''
+                    print(simple_colors.blue("Grouped Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)
                 else:
                     self.is_depth_wise = True
-            if self.input_desc[0].shape[-1] % 16 != 0 or self.input_desc[0].shape[0] % 16 != 0:
-                self.akg_name = ''
+                    print(simple_colors.green("Depthwise Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)
+                return
+            
+            if self.input_desc[0].shape[-1] % 16 != 0:
+                print(simple_colors.red("input channel not divisible by 16{}: ".format("[omitted]" if self.input_desc[0].shape[-1] != 3 else "")), self.input_desc[0].shape, self.input_desc[1].shape)
+                if self.input_desc[0].shape[-1] != 3:
+                    self.akg_name = ''
+            elif self.input_desc[1].shape[0] % 16 != 0:
+                # if self.input_desc[1].shape[0] % 8 != 0:
+                #     self.akg_name = ''
+                #     print(simple_colors.red("n-axis/output channel not divisible by 8[omitted, currently not supported]: "), self.input_desc[0].shape, self.input_desc[1].shape)
+                # else:
+                print("n-axis/output channel not divisible by 16: ", self.input_desc[0].shape, self.input_desc[1].shape)
         
         elif self.name == "nn.adaptive_avg_pool2d":
             self.pool_type = "avg"
@@ -315,6 +375,15 @@ class OpDesc:
                     "data_type": "listInt",
                     "name": "tail",
                     "value": self.pad_tail
+                }
+            ]
+            
+        elif self.akg_name == "UnPadAkgv2":
+            return [
+                {
+                    "data_type": "listInt",
+                    "name": "tail",
+                    "value": self.unpad_tail
                 }
             ]
         
