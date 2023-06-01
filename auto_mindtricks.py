@@ -4,7 +4,6 @@ from mindop import *
 def to_json(op):
     json_obj = {
         "soft constraints": [statement.to_dict() for statement in op.statements],
-        "domain": op.domain,
         "operator": op.op,
         "name": "template contents for {}".format(op.op)
     }
@@ -23,4 +22,6 @@ for filename in os.listdir(infopath):
                     if attr["name"] == "is_depth_wise":
                         continue
             mindop = MindOpDesc(json_obj, op_matches[0][-1])
-            mindop.op = filename
+            mindop.op = filename.split('.')[0] + '_0'
+            with open(os.path.join(os.getcwd(), 'mindtricks', mindop.op + '.mindtrick-template.json'), 'w') as mindtricks:
+                mindtricks.write(json.dumps(to_json(mindop), indent=4))

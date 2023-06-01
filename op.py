@@ -88,6 +88,8 @@ class OpDesc:
         elif len(self.input_desc) > 1:
             tensor_b = self.input_desc[1]
             old_shape = tensor_b.shape[-1]
+            if old_shape % 16 == 0:
+                return [self]
             new_shape = ((old_shape + 16) // 16) * 16
             shapes = copy.deepcopy(tensor_b.shape)
             shapes[-1] = new_shape
@@ -279,11 +281,11 @@ class OpDesc:
                 if self.input_desc[0].shape[-1] != 3:
                     self.akg_name = ''
             elif self.input_desc[1].shape[0] % 16 != 0:
-                # if self.input_desc[1].shape[0] % 8 != 0:
-                #     self.akg_name = ''
-                #     print(simple_colors.red("n-axis/output channel not divisible by 8[omitted, currently not supported]: "), self.input_desc[0].shape, self.input_desc[1].shape)
-                # else:
-                print("n-axis/output channel not divisible by 16: ", self.input_desc[0].shape, self.input_desc[1].shape)
+                if self.input_desc[1].shape[0] % 8 != 0:
+                    self.akg_name = ''
+                    print(simple_colors.red("n-axis/output channel not divisible by 8[omitted, currently not supported]: "), self.input_desc[0].shape, self.input_desc[1].shape)
+                else:
+                    print("n-axis/output channel not divisible by 16: ", self.input_desc[0].shape, self.input_desc[1].shape)
         
         elif self.name == "nn.adaptive_avg_pool2d":
             self.pool_type = "avg"
