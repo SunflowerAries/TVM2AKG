@@ -2,6 +2,14 @@ import re
 from tensor import *
 import copy
 import simple_colors
+from enum import Enum
+
+depthwise_omit = True
+
+class ConvType(Enum):
+    NORM = 1
+    GROUPED = 2
+    DEPTHWISE = 3
 
 onnx2akg = {
     "nn.dense": "Matmul",
@@ -28,6 +36,7 @@ onnx2akg = {
     "fast_tanh": "Tanh",
     "nn.fast_softmax": "Softmax",
     "nn.batch_matmul": "BatchMatmul",
+    "nn.pad": "PadAkg",
     "take": "Take",
     "multiply": "Mul",
     "divide": "Div",
@@ -39,7 +48,12 @@ onnx2akg = {
 
 unparsedOps = set()
 
-depthwise_omit = False
+class FusedOpDesc:
+    def __init__(self, id, ops, params):
+        self.ops = ops
+        self.params = params
+        self.id = id
+        self.desc = []
 
 class OpDesc:
     def __init__(self, input_str, inputs, outputs):
@@ -67,7 +81,7 @@ class OpDesc:
         if self.akg_name in ["Conv2D", "Matmul"]:
             tensor_b = self.input_desc[1]
             old_shape = tensor_b.shape[0]
-            new_shape = ((old_shape + 16) // 16) * 16
+            new_shape = ((old_shape + 32) // 32) * 32
             shapes = copy.deepcopy(tensor_b.shape)
             shapes[0] = new_shape
             pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
@@ -90,7 +104,7 @@ class OpDesc:
             old_shape = tensor_b.shape[-1]
             if old_shape % 16 == 0:
                 return [self]
-            new_shape = ((old_shape + 16) // 16) * 16
+            new_shape = ((old_shape + 32) // 32) * 32
             shapes = copy.deepcopy(tensor_b.shape)
             shapes[-1] = new_shape
             pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
@@ -262,30 +276,27 @@ class OpDesc:
             if "strides=" in input_str:
                 self.strides = list(map(int, re.findall(r'strides=\[(.*?)\]', input_str)[0].split(', ')))
             self.pad = list(map(int, re.findall(r'padding=\[(.*?)\]', input_str)[0].split(', ')))
+            self.conv_type = ConvType.NORM
             self.is_depth_wise = False
             if "groups=" in input_str:
                 groups = re.findall(r'groups=(\d+)', input_str)[0]
                 channels = re.findall(r'channels=(\d+)', input_str)[0]
-                if depthwise_omit == True:
-                    self.akg_name = ''
                 if groups != channels:
-                    self.akg_name = ''
-                    print(simple_colors.blue("Grouped Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)
+                    self.conv_type = ConvType.GROUPED
                 else:
+                    self.conv_type = ConvType.DEPTHWISE
                     self.is_depth_wise = True
-                    print(simple_colors.green("Depthwise Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)
-                return
             
-            if self.input_desc[0].shape[-1] % 16 != 0:
-                print(simple_colors.red("input channel not divisible by 16{}: ".format("[omitted]" if self.input_desc[0].shape[-1] != 3 else "")), self.input_desc[0].shape, self.input_desc[1].shape)
-                if self.input_desc[0].shape[-1] != 3:
-                    self.akg_name = ''
-            elif self.input_desc[1].shape[0] % 16 != 0:
-                if self.input_desc[1].shape[0] % 8 != 0:
-                    self.akg_name = ''
-                    print(simple_colors.red("n-axis/output channel not divisible by 8[omitted, currently not supported]: "), self.input_desc[0].shape, self.input_desc[1].shape)
-                else:
-                    print("n-axis/output channel not divisible by 16: ", self.input_desc[0].shape, self.input_desc[1].shape)
+            # if self.input_desc[0].shape[-1] % 16 != 0:
+            #     print(simple_colors.red("input channel not divisible by 16{}: ".format("[omitted]" if self.input_desc[0].shape[-1] != 3 else "")), self.input_desc[0].shape, self.input_desc[1].shape)
+            #     if self.input_desc[0].shape[-1] != 3:
+            #         self.akg_name = ''
+            # elif self.input_desc[1].shape[0] % 16 != 0:
+            #     if self.input_desc[1].shape[0] % 8 != 0:
+            #         self.akg_name = ''
+            #         print(simple_colors.red("n-axis/output channel not divisible by 8[omitted, currently not supported]: "), self.input_desc[0].shape, self.input_desc[1].shape)
+            #     else:
+            #         print("n-axis/output channel not divisible by 16: ", self.input_desc[0].shape, self.input_desc[1].shape)
         
         elif self.name == "nn.adaptive_avg_pool2d":
             self.pool_type = "avg"
@@ -305,8 +316,6 @@ class OpDesc:
         
         elif self.name == "reshape":
             self.shape = self.output_desc[0].shape
-            if self.input_desc[0].shape == self.output_desc[0].shape:
-                self.akg_name = ''
         
         elif self.name == "take":
             self.index = re.findall(r', (.*?), ', input_str)[0].split()[0]
@@ -314,17 +323,37 @@ class OpDesc:
         
         elif self.name == "squeeze":
             self.shape = self.output_desc[0].shape
-            if self.input_desc[0].shape == self.output_desc[0].shape:
-                self.akg_name = ''
                 
-        elif self.name == "broadcast_to":
-            if self.input_desc[0].shape == self.output_desc[0].shape:
-                self.akg_name = ''
+        elif self.name == "nn.pad":
+            pad_width = [(int(pad[0]), int(pad[1])) for pad in re.findall(r'\[(-?\d), (-?\d)\]', input_str)]
+            self.pad_head = [pad[0] for pad in pad_width]
+            self.pad_tail = [pad[1] for pad in pad_width]
+            self.is_pad_minus = any(pad < 0 for pad in self.pad_head) or any(pad < 0 for pad in self.pad_tail)
         
         elif self.name == "variance":
             self.axis = int(re.findall(r'axis=\[(-?\d+)\]', input_str)[0])
             if self.axis == -1:
                 self.axis = len(self.input_desc[0].shape) - 1
+    
+    @property
+    def is_redundant(self):
+        if self.akg_name == "Conv2D":
+            if self.conv_type == ConvType.GROUPED:
+                print(simple_colors.blue("Grouped Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)
+                return True
+            elif self.conv_type == ConvType.DEPTHWISE and depthwise_omit:
+                print(simple_colors.green("Depthwise Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)
+                return True
+        
+        elif self.akg_name == "Reshape":
+            if self.input_desc[0].shape == self.output_desc[0].shape:
+                return True
+        
+        elif self.akg_name == "BroadcastTo":
+            if self.input_desc[0].shape == self.output_desc[0].shape:
+                return True
+            
+        return False
     
     @property
     def attr(self):
@@ -529,6 +558,7 @@ class OpDesc:
             ]
         
         elif self.akg_name == "Matmul" or self.akg_name == "BatchMatmul":
+            assert(self.input_desc[0].shape[-1] == self.input_desc[1].shape[-2])
             return [
                 {
                     "data_type": "str",

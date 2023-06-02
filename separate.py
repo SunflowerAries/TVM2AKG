@@ -52,7 +52,7 @@ def pad(ops):
     backbone_op = ops[0]
     tensor_b = backbone_op.input_desc[1]
     old_shape = tensor_b.shape[0]
-    new_shape = ((old_shape + 16) // 16) * 16
+    new_shape = ((old_shape + 32) // 32) * 32
     
     new_ops = backbone_op.get_pad()
     pad_ops += new_ops
@@ -145,7 +145,7 @@ def parse(lines):
                 inputs[0].shape[-1] = graphtensors[op_dict[opid].inputs[0]].shape[-1]
                 pad_shapes = copy.deepcopy(inputs[1].shape)
                 if pad_shapes[0] % 16 != 0:
-                    pad_shapes[0] = (pad_shapes[0] + 16) // 16 * 16
+                    pad_shapes[0] = (pad_shapes[0] + 32) // 32 * 32
                     output.shape[-1] = pad_shapes[0]
                 pad_shapes[-1] = inputs[0].shape[-1]
                 pad_tensor = TensorDesc("pad_" + inputs[1].tensor_name, inputs[1].data_type, pad_shapes, inputs[1].format)
