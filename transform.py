@@ -150,7 +150,7 @@ def parse(lines):
 def to_json(ops, params):
     opname = "Fused_{}".format('_'.join([op.akg_name for op in ops]))
     params.sort(key=lambda param: param.tensor_name)
-    hash_value = hash(str([i.shape for i in params])) + sys.maxsize + 1
+    hash_value = hash(str([[input.shape for input in op.input_desc] for op in ops])) + sys.maxsize + 1
     
     if opname not in op_hashset:
         op_hashset[opname] = set()

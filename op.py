@@ -637,12 +637,12 @@ class OpDesc:
                 {
                     "data_type": "bool",
                     "name": "transpose_x2",
-                    "value": True
+                    "value": False
                 },
                 {
                     "data_type": "bool",
                     "name": "transpose_b",
-                    "value": True
+                    "value": False
                 },
                 {
                     "data_type": "str",

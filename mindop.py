@@ -60,6 +60,19 @@ class Statement:
                 tmp[-2] = '?'
                 coeffs.append(''.join(tmp))
             return coeffs
+        
+        elif self.kind == "Transpose":
+            coeffs = []
+            tmp = [0] * (len(self.axes) + 1)
+            tmp[-1] = 1
+            if self.has_pad:
+                tmp[-1] = 2
+            coeffs.append(str(tmp))
+            for i in range(len(self.axes)):
+                tmp = [0] * (len(self.axes) + 1)
+                tmp[i] = 1
+                coeffs.append(str(tmp))
+            return coeffs
 
 class MindOpDesc:
     def __init__(self, json_obj, backbone):
@@ -140,8 +153,12 @@ class MindOpDesc:
                     tensor_c = op["output_desc"][0]["shape"]
                     self.statements.append(Statement(cnt, tensor_c, "Init", has_pad, backbone="BatchMatMul"))
                     cnt += 1
-                    self.statements.append(Statement(cnt, tensor_c + [tensor_a[2]], "BatchMatMul", has_pad))
+                    self.statements.append(Statement(cnt, tensor_c + [tensor_a[-1]], "BatchMatMul", has_pad))
                     cnt += 1
-                else:
+                elif op["name"] in ["Add", "Mul", "Cast", "Div"]:
                     self.statements.append(Statement(cnt, tensor_c, "Elem", has_pad, backbone="BatchMatMul"))
                     return
+            for op in json_obj["op_desc"]:
+                if op["name"] == "Transpose":
+                    output_tensor = op["output_desc"][0]["shape"]
+                    self.statements.append(Statement(cnt, output_tensor, "Transpose", has_pad, backbone="BatchMatMul"))

@@ -87,6 +87,7 @@ def propagate_conv_pad(fusedop, op_dict):
         ops += fusedop.ops[1:]
         fusedop.ops = ops    
 
+# special pass for vit's attention module
 def propagate_batch_matmul_pad(fusedop, op_dict):
     ops = []
     old_shape = fusedop.params[0].shape[1]
@@ -98,22 +99,22 @@ def propagate_batch_matmul_pad(fusedop, op_dict):
         if op.akg_name == "Transpose":
             new_axis = op.attr[0]["value"].index(1)
             op.output_desc[0].shape[new_axis] = new_shape
+            
+            output_tensor = op.output_desc[0]
+            shapes = copy.deepcopy(output_tensor.shape)
+            shapes[new_axis] = old_shape
+            unpad_tensor = TensorDesc("unpad_" + output_tensor.tensor_name, output_tensor.data_type, shapes, output_tensor.format)
+            unpad = OpDesc(None, [output_tensor], [unpad_tensor])
+            unpad.akg_name = "UnPadAkgv2"
+            unpad.unpad_tail = [0] * len(shapes)
+            unpad.unpad_tail[new_axis] = new_shape - old_shape
         elif op.akg_name == "BatchMatMul":
             op.output_desc[0].shape[1] = new_shape
         elif op.akg_name == "Reshape":
-            unpad_shape = op.output_desc[0].shape[new_axis]
-            op.output_desc[0].shape[new_axis] = (op.output_desc[0].shape[new_axis] // old_shape) * new_shape
+            op.input_desc[0].tensor_name = unpad_tensor.tensor_name
         ops.append(op)
-    
-    last_tensor = ops[-1].output_desc[0]
-    shapes = copy.deepcopy(last_tensor.shape)
-    shapes[0] = unpad_shape
-    unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
-    unpad = OpDesc(None, [last_tensor], [unpad_tensor])
-    unpad.akg_name = "UnPadAkgv2"
-    unpad.unpad_tail = [0] * len(shapes)
-    unpad.unpad_tail[0] = last_tensor.shape[0] - unpad_shape
-    ops.append(unpad)
+        if op.akg_name == "Transpose":
+            ops.append(unpad)
     
     fusedop.ops = ops
     
