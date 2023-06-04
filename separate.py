@@ -155,6 +155,7 @@ def parse(lines):
                 pad_op.pad_tail = copy.deepcopy(pad_op.pad_head)
                 pad_op.pad_tail[0] = pad_shapes[0] - inputs[1].shape[0]
                 pad_op.pad_tail[-1] = pad_shapes[-1] - inputs[1].shape[-1]
+                pad_op.pad_value = 0
                 ops.append(pad_op)
                 params.add(inputs[1])
                 inputs[1] = pad_tensor

@@ -49,11 +49,13 @@ onnx2akg = {
 unparsedOps = set()
 
 class FusedOpDesc:
-    def __init__(self, id, ops, params):
+    def __init__(self, id, ops, params, is_conv, is_split):
         self.ops = ops
         self.params = params
         self.id = id
         self.desc = []
+        self.is_conv = is_conv
+        self.is_split = is_split
 
 class OpDesc:
     def __init__(self, input_str, inputs, outputs):
@@ -93,29 +95,62 @@ class OpDesc:
             else:
                 pad.pad_head = [0, 0]
                 pad.pad_tail = [new_shape - old_shape, 0]
+            pad.pad_value = 0
             self.input_desc[1] = pad_tensor
             self.output_desc[0].shape[-1] = new_shape
             return [pad, self]
-            
         
-        # we need two operand
-        elif len(self.input_desc) > 1:
-            tensor_b = self.input_desc[1]
-            old_shape = tensor_b.shape[-1]
-            if old_shape % 16 == 0:
-                return [self]
+        elif self.akg_name == "BatchMatmul":
+            # pad (16, 50, 4096) to (16, 64, 4096)
+            tensor_a = self.input_desc[0]
+            old_shape = tensor_a.shape[1]
             new_shape = ((old_shape + 32) // 32) * 32
-            shapes = copy.deepcopy(tensor_b.shape)
+            shapes = copy.deepcopy(tensor_a.shape)
+            shapes[1] = new_shape
+            pad_tensor = TensorDesc("pad_" + tensor_a.tensor_name, tensor_a.data_type, shapes, tensor_a.format)
+            pad = OpDesc(None, [tensor_a], [pad_tensor])
+            pad.akg_name = "PadAkg"
+            pad.pad_head = [0, 0, 0]
+            pad.pad_tail = [0, new_shape - old_shape, 0]
+            pad.pad_value = 0
+            self.input_desc[0] = pad_tensor
+            self.output_desc[0].shape[1] = new_shape
+            return [pad, self]
+        
+        elif len(self.input_desc) == 1 or self.akg_name == "Clip":
+            tensor_b = self.input_desc[0]
+            assert(tensor_b.shape[-1] % 16 == 0)
+            self.output_desc[0].shape[-1] = tensor_b.shape[-1]
+            return [self]
+        
+        # elementwise op
+        elif len(self.input_desc) == 2:
+            tensor_a = self.input_desc[0]
+            tensor_b = self.input_desc[1]
+                        
+            if tensor_a.shape[-1] % 16 != 0 and tensor_a.shape[-1] != 1:
+                unpad_tensor = tensor_a
+            elif tensor_b.shape[-1] % 16 != 0 and tensor_b.shape[-1] != 1:
+                unpad_tensor = tensor_b
+            elif self.output_desc[0].shape[-1] % 16 != 0:
+                self.output_desc[0].shape[-1] = ((self.output_desc[0].shape[-1] + 32) // 32) * 32
+                return [self]
+            
+            old_shape = unpad_tensor.shape[-1]
+            new_shape = ((old_shape + 32) // 32) * 32
+            shapes = copy.deepcopy(unpad_tensor.shape)
             shapes[-1] = new_shape
-            pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
-            pad = OpDesc(None, [tensor_b], [pad_tensor])
+            pad_tensor = TensorDesc("pad_" + unpad_tensor.tensor_name, unpad_tensor.data_type, shapes, unpad_tensor.format)
+            pad = OpDesc(None, [unpad_tensor], [pad_tensor])
             pad.akg_name = "PadAkg"
             pad.pad_head = [0] * len(shapes)
             pad.pad_tail = copy.deepcopy(pad.pad_head)
             pad.pad_tail[-1] = new_shape - old_shape
+            pad.pad_value = 0
             self.input_desc[0].shape[-1] = new_shape
             self.input_desc[1] = pad_tensor
             self.output_desc[0].shape[-1] = new_shape
+            
             return [pad, self]
         
         else:
@@ -286,17 +321,6 @@ class OpDesc:
                 else:
                     self.conv_type = ConvType.DEPTHWISE
                     self.is_depth_wise = True
-            
-            # if self.input_desc[0].shape[-1] % 16 != 0:
-            #     print(simple_colors.red("input channel not divisible by 16{}: ".format("[omitted]" if self.input_desc[0].shape[-1] != 3 else "")), self.input_desc[0].shape, self.input_desc[1].shape)
-            #     if self.input_desc[0].shape[-1] != 3:
-            #         self.akg_name = ''
-            # elif self.input_desc[1].shape[0] % 16 != 0:
-            #     if self.input_desc[1].shape[0] % 8 != 0:
-            #         self.akg_name = ''
-            #         print(simple_colors.red("n-axis/output channel not divisible by 8[omitted, currently not supported]: "), self.input_desc[0].shape, self.input_desc[1].shape)
-            #     else:
-            #         print("n-axis/output channel not divisible by 16: ", self.input_desc[0].shape, self.input_desc[1].shape)
         
         elif self.name == "nn.adaptive_avg_pool2d":
             self.pool_type = "avg"
@@ -395,7 +419,7 @@ class OpDesc:
                 {
                     "data_type": "int",
                     "name": "pad_val",
-                    "value": 0
+                    "value": self.pad_value if hasattr(self, "pad_value") else 0
                 },
                 {
                     "data_type": "listInt",
@@ -557,7 +581,52 @@ class OpDesc:
                 }
             ]
         
-        elif self.akg_name == "Matmul" or self.akg_name == "BatchMatmul":
+        elif self.akg_name == "Matmul":
+            assert(self.input_desc[0].shape[-1] == self.input_desc[1].shape[-1])
+            return [
+                {
+                    "data_type": "str",
+                    "name": "right_format",
+                    "value": "DefaultFormat"
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_x2",
+                    "value": False
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_b",
+                    "value": False
+                },
+                {
+                    "data_type": "str",
+                    "name": "left_format",
+                    "value": "DefaultFormat"
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_x1",
+                    "value": False
+                },
+                {
+                    "data_type": "bool",
+                    "value": "transpose_a",
+                    "value": False
+                },
+                {
+                    "data_type": "bool",
+                    "name": "Akg",
+                    "value": True
+                },
+                {
+                    "data_type": "str",
+                    "name": "dst_type",
+                    "value": self.output_desc[0].data_type
+                }
+            ]
+        
+        elif self.akg_name == "BatchMatmul":
             assert(self.input_desc[0].shape[-1] == self.input_desc[1].shape[-2])
             return [
                 {
@@ -601,7 +670,7 @@ class OpDesc:
                     "value": self.output_desc[0].data_type
                 }
             ]
-            
+        
         elif self.akg_name == "Clip":
             return [
                 {

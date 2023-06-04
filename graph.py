@@ -3,46 +3,301 @@ import copy
 from op import *
 from tensor import *
 
-def pad(fusedops, op_dict, graphtensors):
-    for fusedop in fusedops:
-        backbone_op = fusedop.ops[0]
-        
-        if backbone_op.akg_name == "Conv2D":
-            pass
-        elif backbone_op.akg_name == "Matmul":
-            pass
-        elif backbone_op.akg_name == "BatchMatmul":
-            pass
-        tensor_b = backbone_op.input_desc[1]
-        old_shape = tensor_b.shape[0]
-        new_shape = ((old_shape + 32) // 32) * 32
-        
-        new_ops = backbone_op.get_pad()
-        pad_ops += new_ops
-        
-        for op in ops[1:]:
-            if len(op.input_desc) > 1 and op.input_desc[1].shape[-1] == old_shape:
-                new_ops = op.get_pad()
-                pad_ops += new_ops
-            else:
-                op.input_desc[0].shape[-1] = new_shape
-                op.output_desc[0].shape[-1] = new_shape
-                pad_ops.append(op)
-                
-        last_tensor = pad_ops[-1].output_desc[0]
-        shapes = copy.deepcopy(last_tensor.shape)
+def unpad(pad_ops, old_shape, new_shape):
+    
+    backbone_op = pad_ops[1] if pad_ops[1].akg_name in ["Conv2D", "Matmul", "BatchMatmul"] else pad_ops[0]
+    last_tensor = pad_ops[-1].output_desc[0]
+    shapes = copy.deepcopy(last_tensor.shape)
+    if backbone_op.akg_name == "BatchMatmul":
+        shapes[1] = old_shape
+        unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
+        unpad = OpDesc(None, [last_tensor], [unpad_tensor])
+        unpad.akg_name = "UnPadAkgv2"
+        unpad.unpad_tail = [0] * len(shapes)
+        unpad.unpad_tail[1] = new_shape - old_shape
+    else:
         shapes[-1] = old_shape
         unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
         unpad = OpDesc(None, [last_tensor], [unpad_tensor])
         unpad.akg_name = "UnPadAkgv2"
         unpad.unpad_tail = [0] * len(shapes)
         unpad.unpad_tail[-1] = new_shape - old_shape
-        pad_ops.append(unpad)
     
+    pad_ops.append(unpad)
     return pad_ops
+
+# previous conv's output channel has been padded into multiplies of 32
+# so this conv's input channel should also set to multiplies of 32
+def propagate_conv_pad(fusedop, op_dict):
+    # must be conv
+    
+    ops = []
+    
+    assert(fusedop.is_conv)
+    backbone_op = fusedop.ops[0]
+    tensor_a =  backbone_op.input_desc[0]
+    tensor_b = backbone_op.input_desc[1]
+    
+    old_shape = tensor_a.shape[-1]
+    if old_shape % 16 == 0:
+        return
+    elif tensor_b.shape[0] % 8 != 0:
+        fusedop.is_skip = True
+        print("output channel is not divisible by 8[omitted]: ", tensor_a.shape, tensor_b.shape)
+        return
+    
+    new_shape = ((old_shape + 32) // 32) * 32
+    
+    tensor_a.shape[-1] = new_shape
+    shapes = copy.deepcopy(tensor_b.shape)
+    shapes[-1] = new_shape
+    
+    pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+    pad = OpDesc(None, [tensor_b], [pad_tensor])
+    pad.akg_name = "PadAkg"
+    
+    pad.pad_head = [0, 0, 0, 0]
+    pad.pad_tail = [0, 0, 0, new_shape - old_shape]
+    pad.pad_value = 0
+    
+    if tensor_b.shape[0] % 16 != 0:
+        old_shape = tensor_b.shape[0]
+        new_shape = ((old_shape + 32) // 32) * 32
+        pad_tensor.shape[0] = new_shape
+        pad.pad_tail[0] = new_shape - old_shape
+        ops += [pad, backbone_op]
+        for op in fusedop.ops[1:]:
+            ops += op.get_pad()
+            
+        if all([op_dict[desc].is_conv and (op_dict[desc].ops[0].akg_name == "PadAkg" or any(op_dict[desc].ops[0].pad) != True) for desc in fusedop.desc]) and tensor_b.shape[0] % 8 == 0:
+            for desc in fusedop.desc:
+                if op_dict[desc].inputs[0] == fusedop.output:
+                    propagate_conv_pad(op_dict[desc], op_dict)
+                else:
+                    op_dict[desc].params[op_dict[desc].inputs.index(fusedop.output)].shape[-1] = new_shape
+            fusedop.ops = ops
+        elif tensor_b.shape[0] % 8 != 0:
+            print("output channel is not divisible by 8: ", tensor_a.shape, tensor_b.shape)
+        else:
+            fusedop.ops = unpad(ops, old_shape, new_shape)
+        
+    else:
+        backbone_op.input_desc[1] = pad_tensor
+        ops += [pad, backbone_op]
+        ops += fusedop.ops[1:]
+        fusedop.ops = ops    
+
+def propagate_batch_matmul_pad(fusedop, op_dict):
+    ops = []
+    old_shape = fusedop.params[0].shape[1]
+    new_shape = ((old_shape + 32) // 32) * 32
+    fusedop.params[0].shape[1] = fusedop.params[0].shape[-1] = new_shape
+    new_axis = None
+    unpad_shape = 0
+    for op in fusedop.ops:
+        if op.akg_name == "Transpose":
+            new_axis = op.attr[0]["value"].index(1)
+            op.output_desc[0].shape[new_axis] = new_shape
+        elif op.akg_name == "BatchMatmul":
+            op.output_desc[0].shape[1] = new_shape
+        elif op.akg_name == "Reshape":
+            unpad_shape = op.output_desc[0].shape[new_axis]
+            op.output_desc[0].shape[new_axis] = (op.output_desc[0].shape[new_axis] // old_shape) * new_shape
+        ops.append(op)
+    
+    last_tensor = ops[-1].output_desc[0]
+    shapes = copy.deepcopy(last_tensor.shape)
+    shapes[0] = unpad_shape
+    unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
+    unpad = OpDesc(None, [last_tensor], [unpad_tensor])
+    unpad.akg_name = "UnPadAkgv2"
+    unpad.unpad_tail = [0] * len(shapes)
+    unpad.unpad_tail[0] = last_tensor.shape[0] - unpad_shape
+    ops.append(unpad)
+    
+    fusedop.ops = ops
+    
+    assert(len(fusedop.desc) == 1)
+    assert(op_dict[fusedop.desc[0]].ops[0].akg_name == "Matmul")
+
+def propagate_softmax_pad(fusedop, op_dict):
+    
+    ops = []
+    reduce_op = fusedop.ops[0]
+    assert(fusedop.params[0].shape[1] == fusedop.params[0].shape[-1])
+    old_shape = fusedop.params[0].shape[1]
+    new_shape = ((old_shape + 32) // 32) * 32
+    shapes = copy.deepcopy(fusedop.params[0].shape)
+    shapes[1] = shapes[-1] = new_shape
+    
+    pad_tensor = TensorDesc("pad_" + fusedop.params[0].tensor_name, fusedop.params[0].data_type, shapes, fusedop.params[0].format)
+    pad = OpDesc(None, [fusedop.params[0]], [pad_tensor])
+    pad.akg_name = "PadAkg"
+    
+    pad.pad_head = [0, 0, 0]
+    pad.pad_tail = [0, new_shape - old_shape, new_shape - old_shape]
+    pad.pad_value = -65504
+    reduce_op.input_desc[0] = pad_tensor
+    ops.append(pad)
+    for op in fusedop.ops:
+        if "Reduce" in op.akg_name:
+            op.output_desc[0].shape[1] = new_shape
+        elif op.input_desc[0].tensor_name == fusedop.params[0].tensor_name:
+            op.input_desc[0] = pad_tensor
+            op.output_desc[0].shape[1] = op.output_desc[0].shape[-1] = new_shape
+        elif op.akg_name == "Cast":
+            op.output_desc[0].shape[1] = op.output_desc[0].shape[-1] = new_shape
+        ops.append(op)
+    fusedop.ops = ops
+    
+    assert(len(fusedop.desc) == 1)
+    batch_matmul_fused_op = op_dict[fusedop.desc[0]]
+    assert(batch_matmul_fused_op.inputs.index(fusedop.output)==0)
+    propagate_batch_matmul_pad(batch_matmul_fused_op, op_dict)
+
+def vit_pad_transpose(op, new_axis):
+    if op.akg_name == "Reshape":
+        # (50, 256, 64)
+        unpad_tensor = op.input_desc[0]
+        old_shape = unpad_tensor.shape[0]
+        new_shape = ((old_shape + 32) // 32) * 32
+        shapes = copy.deepcopy(unpad_tensor.shape)
+        shapes[0] = new_shape
+        pad_tensor = TensorDesc("pad_" + unpad_tensor.tensor_name, unpad_tensor.data_type, shapes, unpad_tensor.format)
+        pad = OpDesc(None, [unpad_tensor], [pad_tensor])
+        pad.akg_name = "PadAkg"
+        pad.pad_head = [0] * len(shapes)
+        pad.pad_tail = copy.deepcopy(pad.pad_head)
+        pad.pad_tail[0] = new_shape - old_shape
+        pad.pad_value = 0
+        op.input_desc[0] = pad_tensor
+        op.output_desc[0].shape[0] = new_shape
+        return [pad, op]
+    
+    elif op.akg_name == "Transpose":
+        op.output_desc[0].shape[new_axis] = ((op.output_desc[0].shape[new_axis] + 32) // 32) * 32
+        return [op]
+    
+    elif op.akg_name in ["Div"]:
+        op.output_desc[0].shape[new_axis] = ((op.output_desc[0].shape[new_axis] + 32) // 32) * 32
+        return [op]
+
+def pad(fusedops, op_dict, graphtensors):
+    
+    new_fusedops = []
+    
+    for fusedop in fusedops:
+        backbone_op = fusedop.ops[0]
+        if backbone_op.akg_name == "Conv2D":
+            tensor_a = backbone_op.input_desc[0]
+            tensor_b = backbone_op.input_desc[1]
+            old_shape = tensor_b.shape[0]
+            new_shape = ((old_shape + 32) // 32) * 32
+            
+            if tensor_b.shape[0] % 8 != 0:
+                print("output channel is not divisible by 8[omitted]: ", tensor_a.shape, tensor_b.shape)
+                fusedop.is_skip = True
+                continue
+            
+            assert(tensor_a.shape[-1] == tensor_b.shape[-1])
+            
+            if tensor_a.shape[-1] % 16 != 0:
+                if tensor_a.shape[-1] != 3:
+                    fusedop.is_skip = True
+                print(simple_colors.red("input channel not divisible by 16{}: ".format("[omitted]" if tensor_a.shape[-1] != 3 else "")), tensor_a.shape, tensor_b.shape)
+                continue
+                
+            if tensor_b.shape[0] % 16 != 0:
+                ops = []
+                for op in fusedop.ops:
+                    ops += op.get_pad()
+                # following is all conv and this conv's output channel(which is also following conv's input channel) is multiplies of 8
+                # and there do not exist padding on image, then we propagate the padding
+                if all([op_dict[desc].is_conv and (op_dict[desc].ops[0].akg_name == "PadAkg" or any(op_dict[desc].ops[0].pad) != True) for desc in fusedop.desc]):
+                    print("we're progagate padding")
+                    for desc in fusedop.desc:
+                        if op_dict[desc].inputs[0] == fusedop.output:
+                            propagate_conv_pad(op_dict[desc], op_dict)
+                        else:
+                            op_dict[desc].params[op_dict[desc].inputs.index(fusedop.output)].shape[-1] = new_shape
+                    fusedop.ops = ops                    
+                else:
+                    fusedop.ops = unpad(ops, old_shape, new_shape)
+        
+        elif backbone_op.akg_name == "Matmul":
+            tensor_b = backbone_op.input_desc[1]
+            old_shape = tensor_b.shape[0]
+            new_shape = ((old_shape + 32) // 32) * 32
+            # local padding, it will not change the graph
+            if tensor_b.shape[0] % 16 != 0:
+                ops = []
+                for op in fusedop.ops:
+                    ops += op.get_pad()
+                fusedop.ops = unpad(ops, old_shape, new_shape)
+        
+        elif backbone_op.akg_name == "BatchMatmul":
+            bmm_m = backbone_op.input_desc[0].shape[1]
+            bmm_n = backbone_op.input_desc[1].shape[-1]
+            bmm_k = backbone_op.input_desc[0].shape[-1]
+            assert(bmm_k % 16 == 0)
+            if bmm_m % 16 != 0 and bmm_n % 16 == 0:
+                ops = []
+                
+                new_shape = ((bmm_m + 32) // 32) * 32
+                ops += backbone_op.get_pad()
+                for op in fusedop.ops[1:]:
+                    op.output_desc[0].shape[1] = new_shape
+                    ops += [op]
+                fusedop.ops = unpad(ops, bmm_m, new_shape)
+            
+            if len(fusedop.desc) == 1:
+                epilogue_fusedop = op_dict[fusedop.desc[0]]
+                # softmax
+                epilogue_fusedop_name = "".join([op.akg_name for op in epilogue_fusedop.ops])
+                if "Reduce" in epilogue_fusedop_name and epilogue_fusedop.params[0].shape != fusedop.ops[-1].output_desc[0].shape:
+                    propagate_softmax_pad(epilogue_fusedop, op_dict)
+                
+        elif fusedop.is_split:
+            if len(fusedop.desc)==1:
+                epilogue_fusedop = op_dict[fusedop.desc[0]]
+                epilogue_op = epilogue_fusedop.ops[0]
+                if epilogue_op.akg_name == "BatchMatmul":
+                    ops = []
+                    new_axis = None
+                    for op in fusedop.ops:
+                        if op.akg_name == "Transpose":
+                            new_axis = op.attr[0]["value"].index(0)
+                        ops += vit_pad_transpose(op, new_axis)
+                    fusedop.ops = ops
+                    
+                    # propagate padding from transpose to batchmatmul
+                    index = epilogue_fusedop.inputs.index(fusedop.output)
+                    old_shape = epilogue_fusedop.params[index].shape[new_axis]
+                    epilogue_fusedop.params[index].shape[new_axis] = ((old_shape + 32) // 32) * 32
+                    for op in epilogue_fusedop.ops:
+                        if op.output_desc[0].shape[new_axis] == old_shape:
+                            op.output_desc[0].shape[new_axis] = ((old_shape + 32) // 32) * 32
+                
+    for fusedop in fusedops:
+        if fusedop.is_skip != True:
+            new_fusedops.append(fusedop)
+    
+    return new_fusedops
 
 def eliminate_zero_ops(fusedops, op_dict, graphtensors):
     ops = []
+    to_propagate = []
+    
+    for fusedop in fusedops:
+        # this fusedop's conv is stripped because it's depthwise/grouped
+        if fusedop.is_conv and len(fusedop.ops) >= 1 and fusedop.ops[0].akg_name != "Conv2D":
+            fusedop.is_conv = False
+            output_tensor = fusedop.ops[-1].output_desc[0]
+            
+            old_shape = output_tensor.shape[-1]
+            if old_shape % 16 != 0 and old_shape % 8 == 0:
+                to_propagate.append(fusedop)
+    
     for fusedop in fusedops:
         fusedop.is_skip = False
         if len(fusedop.ops) == 0:
@@ -58,6 +313,32 @@ def eliminate_zero_ops(fusedops, op_dict, graphtensors):
                     op_dict[desc_0].inputs.append(fusedop.inputs[0])
             graphtensors.pop(fusedop.output)
             op_dict.pop(fusedop.id)
+            
+    for fusedop in to_propagate:
+        if all([op_dict[desc].is_conv and any(op_dict[desc].ops[0].pad) != True for desc in fusedop.desc]):
+            output_tensor = fusedop.ops[-1].output_desc[0]
+                
+            old_shape = output_tensor.shape[-1]
+            new_shape = ((old_shape + 32) // 32) * 32
+            shapes = copy.deepcopy(output_tensor.shape)
+            shapes[-1] = new_shape
+            
+            pad_tensor = TensorDesc("pad_" + output_tensor.tensor_name, output_tensor.data_type, shapes, output_tensor.format)
+            pad = OpDesc(None, [output_tensor], [pad_tensor])
+            pad.akg_name = "PadAkg"
+            
+            pad.pad_head = [0, 0, 0, 0]
+            pad.pad_tail = [0, 0, 0, new_shape - old_shape]
+            pad.pad_value = 0
+            
+            for desc in fusedop.desc:
+                if op_dict[desc].inputs[0] == fusedop.output:
+                    propagate_conv_pad(op_dict[desc], op_dict)
+                else:
+                    op_dict[desc].params[op_dict[desc].inputs.index(fusedop.output)].shape[-1] = new_shape
+            
+            fusedop.ops.append(pad)
+            
     for fusedop in fusedops:
         if fusedop.is_skip != True:
             ops.append(fusedop)
@@ -88,9 +369,10 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
                 else:
                     op.input_desc[1-input_index] = fusedop.params[prelogue_op.inputs.index(fusedop.inputs[1-input_index])]
                     
-                op.input_desc[input_index].tensor_name = prelogue_op.ops[-1].output_desc[0].tensor_name
+                op.input_desc[input_index] = prelogue_op.ops[-1].output_desc[0]
                 op.output_desc[0].tensor_name = f"output_0_{int(op.input_desc[input_index].tensor_name.split('_')[-1])+1}"
                 prelogue_op.ops.append(op)
+                prelogue_op.desc = fusedop.desc
                 graphtensors.pop(prelogue_op.output)
                 
                 if fusedop.inputs[1-input_index] in graphtensors:
@@ -101,13 +383,10 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
                             else:
                                 op_dict[graphtensors[fusedop.inputs[1-input_index]]].desc.remove(desc)
                 prelogue_op.output = fusedop.output
-                graphtensors[prelogue_op.output] = prelogue_op
+                graphtensors[prelogue_op.output] = prelogue_op.id
                 
-                for desc in fusedop.desc:
-                    for i, input in enumerate(op_dict[desc].inputs):
-                        if input == fusedop.id:
-                            op_dict[desc].inputs[i] = prelogue_op.id
                 op_dict.pop(fusedop.id)
+            
             elif fusedop.ops[0].akg_name == "Reshape":
                 prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
                 fusedop.is_skip = True
@@ -120,12 +399,13 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
                             break
                 graphtensors.pop(fusedop.output)
                 op_dict.pop(fusedop.id)
+            
             elif fusedop.ops[0].akg_name == "Cast":
                 prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
                 if len(prelogue_op.desc) == 1:
                     fusedop.is_skip = True
                     op = fusedop.ops[0]
-                    op.input_desc[0].tensor_name = prelogue_op.ops[-1].output_desc[0].tensor_name
+                    op.input_desc[0] = prelogue_op.ops[-1].output_desc[0]
                     op.output_desc[0].tensor_name = f"output_0_{int(op.input_desc[0].tensor_name.split('_')[-1])+1}"
                     prelogue_op.ops.append(op)
                     graphtensors.pop(prelogue_op.output)
@@ -141,18 +421,30 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
 def epilogue_fuse(fusedops, op_dict, graphtensors):
     ops = []
     for fusedop in fusedops:
+        fusedop.is_skip = False
         if len(fusedop.desc) == 1:
             op = fusedop.ops[0]
             if op.akg_name == "PadAkg":
                 pass
+            
             elif op.akg_name == "BatchMatmul":
                 epilogue_op = op_dict[fusedop.desc[0]]
                 replace_tensor_name = {}
+                assert(epilogue_op.ops[0].input_desc[0].shape == op.output_desc[0].shape)
                 replace_tensor_name["input_0"] = "output_0_0"
+                batch_matmul_output = op.output_desc[0]
+                
+                epilogue_op_name = "".join([op.akg_name for op in epilogue_op.ops])
+                if "Reduce" in epilogue_op_name:
+                    continue
+                
                 for op in epilogue_op.ops:
                     for i, input in enumerate(op.input_desc):
                         if input.tensor_name in replace_tensor_name:
-                            op.input_desc[i].tensor_name = replace_tensor_name[input.tensor_name]
+                            if input.tensor_name == "input_0":
+                                op.input_desc[i] = batch_matmul_output
+                            else:
+                                op.input_desc[i].tensor_name = replace_tensor_name[input.tensor_name]
                         else:
                             input_name = re.findall(r'input_(\d+)', input.tensor_name)
                             if len(input_name) > 0:
@@ -166,11 +458,14 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
                     if input != fusedop.output and (input.find('%') == -1 or input not in fusedop.inputs):
                         fusedop.inputs.append(input)
                 for param in epilogue_op.params:
-                    if param.tensor_name.find("input") != -1:
+                    if param.tensor_name.find("input") != -1 and param.tensor_name != "input_0":
                         fusedop.params.append(param)
                 fusedop.output = epilogue_op.output
                 fusedop.desc = epilogue_op.desc
                 epilogue_op.is_skip = True
-                ops.append(fusedop)
-        elif fusedop.is_skip != True:
+    
+    for fusedop in fusedops:
+        if fusedop.is_skip != True:
             ops.append(fusedop)
+            
+    return ops

@@ -8,7 +8,6 @@ op_hashset = {}
 def simplify(fused_op):
     ops = []
     replaced_op_dict = {}
-    fused_op.is_conv = False
     for op in fused_op.ops:
         if op.is_redundant != True:
             for i in range(len(op.input_desc)):
@@ -27,7 +26,6 @@ def simplify(fused_op):
                 op.output_desc[0].tensor_name = replaced_op_dict[op.output_desc[0].tensor_name].tensor_name
                 params.append(op.output_desc[0])
                 fused_op.params = params
-                fused_op.is_conv = True
     fused_op.ops = ops
     return fused_op
 
@@ -43,6 +41,7 @@ def parse(lines):
     scalar_descs = re.findall(r'(%p\d+): (float\d+|int\d+)', lines[0])
     
     is_conv = "nn.conv2d" in lines[1]
+    is_split = False
     fmt = 'NHWC' if is_conv else 'DefaultFormat'
     
     for _, tensor_desc in enumerate(tensor_descs):
@@ -58,12 +57,13 @@ def parse(lines):
     
     for _, line in enumerate(lines[1:-1]):
 
-        tensor_pattern = re.compile(r'%p\d+|%\d+')
+        tensor_pattern = re.compile(r'%p\d+|%\d+|\d+\.?\d?f|\d+\.?\d?h')
         tensor_matches = tensor_pattern.findall(line)
         split_tensor_pattern = re.compile(r'%p\d+\.\d')
         split_tensor_matches = split_tensor_pattern.findall(line)
         
         if len(split_tensor_matches) > 0:
+            is_split = True
             assert(len(split_tensor_matches) == 1)
             for t in tensor_matches[1:]:
                 if t == split_tensor_matches[0].split('.')[0]:
@@ -74,7 +74,7 @@ def parse(lines):
                     tensor = TensorDesc(f"input_{input_cnt}", tensor_desc[0][1], list(map(int, tensor_desc[0][0].split(','))), fmt)
                     input_cnt += 1
                     tensors[t] = tensor
-        
+    
         # tuple for concatenate
         tuple_pattern = re.compile(r'%\d+ = \((%p\d+, |%\d+, )*(%p\d+|%\d+)\)|\((%p\d+,|%\d+,)\)')
         tuple_matches = tuple_pattern.findall(line)
@@ -91,30 +91,21 @@ def parse(lines):
             tensors[tensor_matches[0]] = output
             tensor_matches = tensor_matches[1:]
         
-        inputs = [tensors[tensor] for tensor in tensor_matches]
+        inputs = [tensors[tensor] for tensor in filter(lambda tensor : tensor in tensors, tensor_matches)]
         
-        # if ("nn.conv2d" in line) and opid in op_dict:
-        #     if graphtensors[op_dict[opid].inputs[0]].shape != inputs[0].shape:
-        #         inputs[0].shape[-1] = graphtensors[op_dict[opid].inputs[0]].shape[-1]
-        #         pad_shapes = copy.deepcopy(inputs[1].shape)
-        #         if pad_shapes[0] % 16 != 0:
-        #             pad_shapes[0] = (pad_shapes[0] + 32) // 32 * 32
-        #             output.shape[-1] = pad_shapes[0]
-        #         pad_shapes[-1] = inputs[0].shape[-1]
-        #         pad_tensor = TensorDesc("pad_" + inputs[1].tensor_name, inputs[1].data_type, pad_shapes, inputs[1].format)
-        #         pad_op = OpDesc(None, [inputs[1]], [pad_tensor])
-        #         pad_op.akg_name = "PadAkg"
-        #         pad_op.pad_head = [0] * len(pad_shapes)
-        #         pad_op.pad_tail = copy.deepcopy(pad_op.pad_head)
-        #         pad_op.pad_tail[0] = pad_shapes[0] - inputs[1].shape[0]
-        #         pad_op.pad_tail[-1] = pad_shapes[-1] - inputs[1].shape[-1]
-        #         ops.append(pad_op)
-        #         params.add(inputs[1])
-        #         inputs[1] = pad_tensor
+        for tensor in tensor_matches:
+            scalar_pattern = re.compile(r'\d+\.?\d?f|\d+\.?\d?h')
+            scalar_matches = scalar_pattern.findall(tensor)
+            if len(scalar_matches) > 0:
+                data_type = "float32" if scalar_matches[0][-1] == 'f' else "float16"
+                scalar = TensorDesc(f"input_{input_cnt}", data_type, [1], fmt)
+                scalar.value = float(scalar_matches[0][:-1])
+                input_cnt += 1
+                inputs.append(scalar)
         
         op = OpDesc(line, inputs, output if isinstance(output, list) else [output])
         for input in inputs:
-            if input.is_output == False and input not in params:
+            if input.is_output == False and input not in params and input.value == None:
             # if input.is_output == False and ("pad_" not in input.tensor_name):
                 params.append(input)
         output.op = op
@@ -154,12 +145,12 @@ def parse(lines):
     #             graphtensors[op_dict[opid].output].shape = ops[1].output_desc[0].shape
     #             ops = ops[:-1]
     
-    return FusedOpDesc(opid, ops, params)
+    return FusedOpDesc(opid, ops, params, is_conv, is_split)
 
 def to_json(ops, params):
     opname = "Fused_{}".format('_'.join([op.akg_name for op in ops]))
-    
-    hash_value = hash(str([i.shape for i in ops[0].input_desc])) + sys.maxsize + 1
+    params.sort(key=lambda param: param.tensor_name)
+    hash_value = hash(str([i.shape for i in params])) + sys.maxsize + 1
     
     if opname not in op_hashset:
         op_hashset[opname] = set()
@@ -214,6 +205,7 @@ for filename in os.listdir(dirpath):
             
             fused_op = parse(lines[lineno:lineno+wz])
             fused_op = simplify(fused_op)
+            fused_op.lineno = lineno
             global_ops.append(fused_op)
             op_dict[fused_op.id] = fused_op
             
@@ -241,11 +233,14 @@ for filename in os.listdir(dirpath):
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = epilogue_fuse(global_ops, op_dict, graphtensors)
         
-        # global_ops = pad(global_ops, op_dict, graphtensors)
+        global_ops = pad(global_ops, op_dict, graphtensors)
         
-        # json_obj, visited = to_json(ops, params)
+        for fusedop in global_ops:
+            json_obj, visited = to_json(fusedop.ops, fusedop.params)
         
-        # if not visited: 
-        #     json_name = os.path.join(infopath, json_obj['op'] + '.json')
-        #     with open(json_name, 'w') as json_file:
-        #         json_file.write(json.dumps(json_obj, indent=4))
+            if not visited:
+                json_name = os.path.join(infopath, json_obj['op'] + '.json')
+                json_obj['filename'] = filename
+                json_obj['lineno'] = fusedop.lineno
+                with open(json_name, 'w') as json_file:
+                    json_file.write(json.dumps(json_obj, indent=4))
