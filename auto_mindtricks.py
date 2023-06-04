@@ -12,7 +12,7 @@ def to_json(op):
 infopath = os.path.join(os.getcwd(), 'infos')
 
 for filename in os.listdir(infopath):
-    fused_op_pattern = re.compile(r'Fused_(PadAkg_)*(Matmul|Conv2D)_[a-zA-Z]+')
+    fused_op_pattern = re.compile(r'Fused_(PadAkg_)*(MatMul|Conv2D|BatchMatMul)_[a-zA-Z]+')
     op_matches = fused_op_pattern.findall(filename)
     if len(op_matches) > 0:
         with open(os.path.join(infopath, filename)) as f:

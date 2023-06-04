@@ -5,10 +5,10 @@ from tensor import *
 
 def unpad(pad_ops, old_shape, new_shape):
     
-    backbone_op = pad_ops[1] if pad_ops[1].akg_name in ["Conv2D", "Matmul", "BatchMatmul"] else pad_ops[0]
+    backbone_op = pad_ops[1] if pad_ops[1].akg_name in ["Conv2D", "MatMul", "BatchMatMul"] else pad_ops[0]
     last_tensor = pad_ops[-1].output_desc[0]
     shapes = copy.deepcopy(last_tensor.shape)
-    if backbone_op.akg_name == "BatchMatmul":
+    if backbone_op.akg_name == "BatchMatMul":
         shapes[1] = old_shape
         unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
         unpad = OpDesc(None, [last_tensor], [unpad_tensor])
@@ -98,7 +98,7 @@ def propagate_batch_matmul_pad(fusedop, op_dict):
         if op.akg_name == "Transpose":
             new_axis = op.attr[0]["value"].index(1)
             op.output_desc[0].shape[new_axis] = new_shape
-        elif op.akg_name == "BatchMatmul":
+        elif op.akg_name == "BatchMatMul":
             op.output_desc[0].shape[1] = new_shape
         elif op.akg_name == "Reshape":
             unpad_shape = op.output_desc[0].shape[new_axis]
@@ -118,7 +118,7 @@ def propagate_batch_matmul_pad(fusedop, op_dict):
     fusedop.ops = ops
     
     assert(len(fusedop.desc) == 1)
-    assert(op_dict[fusedop.desc[0]].ops[0].akg_name == "Matmul")
+    assert(op_dict[fusedop.desc[0]].ops[0].akg_name == "MatMul")
 
 def propagate_softmax_pad(fusedop, op_dict):
     
@@ -224,7 +224,7 @@ def pad(fusedops, op_dict, graphtensors):
                 else:
                     fusedop.ops = unpad(ops, old_shape, new_shape)
         
-        elif backbone_op.akg_name == "Matmul":
+        elif backbone_op.akg_name == "MatMul":
             tensor_b = backbone_op.input_desc[1]
             old_shape = tensor_b.shape[0]
             new_shape = ((old_shape + 32) // 32) * 32
@@ -235,7 +235,7 @@ def pad(fusedops, op_dict, graphtensors):
                     ops += op.get_pad()
                 fusedop.ops = unpad(ops, old_shape, new_shape)
         
-        elif backbone_op.akg_name == "BatchMatmul":
+        elif backbone_op.akg_name == "BatchMatMul":
             bmm_m = backbone_op.input_desc[0].shape[1]
             bmm_n = backbone_op.input_desc[1].shape[-1]
             bmm_k = backbone_op.input_desc[0].shape[-1]
@@ -261,7 +261,7 @@ def pad(fusedops, op_dict, graphtensors):
             if len(fusedop.desc)==1:
                 epilogue_fusedop = op_dict[fusedop.desc[0]]
                 epilogue_op = epilogue_fusedop.ops[0]
-                if epilogue_op.akg_name == "BatchMatmul":
+                if epilogue_op.akg_name == "BatchMatMul":
                     ops = []
                     new_axis = None
                     for op in fusedop.ops:
@@ -427,7 +427,7 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
             if op.akg_name == "PadAkg":
                 pass
             
-            elif op.akg_name == "BatchMatmul":
+            elif op.akg_name == "BatchMatMul":
                 epilogue_op = op_dict[fusedop.desc[0]]
                 replace_tensor_name = {}
                 assert(epilogue_op.ops[0].input_desc[0].shape == op.output_desc[0].shape)

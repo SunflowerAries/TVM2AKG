@@ -20,7 +20,7 @@ class Statement:
     
     @property
     def coefficients(self):
-        if self.kind in ["Conv2D", "Matmul"]:
+        if self.kind in ["Conv2D", "MatMul", "BatchMatMul"]:
             coeffs = []
             if self.has_pad:
                 tmp = [0] * (len(self.axes) + 1)
@@ -108,7 +108,7 @@ class MindOpDesc:
                     self.statements.append(Statement(cnt, output_size, "Elem", has_pad, backbone="Conv2D"))
                     return
 
-        elif self.backbone == "Matmul":
+        elif self.backbone == "MatMul":
             has_pad = False
             for op in json_obj["op_desc"]:
                 if op["name"] == "PadAkg":
@@ -116,13 +116,32 @@ class MindOpDesc:
                     padded_size = op["output_desc"][0]["shape"]
                     self.statements.append(Statement(cnt, padded_size, "Pad", has_pad))
                     cnt += 1
-                elif op["name"] == "Matmul":
+                elif op["name"] == "MatMul":
                     tensor_a = op["input_desc"][0][0]["shape"]
                     tensor_c = op["output_desc"][0]["shape"]
-                    self.statements.append(Statement(cnt, tensor_c, "Init", has_pad, backbone="Matmul"))
+                    self.statements.append(Statement(cnt, tensor_c, "Init", has_pad, backbone="MatMul"))
                     cnt += 1
-                    self.statements.append(Statement(cnt, tensor_c + [tensor_a[1]], "Matmul", has_pad))
+                    self.statements.append(Statement(cnt, tensor_c + [tensor_a[1]], "MatMul", has_pad))
                     cnt += 1
                 else:
-                    self.statements.append(Statement(cnt, tensor_c, "Elem", has_pad, backbone="Matmul"))
+                    self.statements.append(Statement(cnt, tensor_c, "Elem", has_pad, backbone="MatMul"))
+                    return
+                
+        elif self.backbone == "BatchMatMul":
+            has_pad = False
+            for op in json_obj["op_desc"]:
+                if op["name"] == "PadAkg":
+                    has_pad = True
+                    padded_size = op["output_desc"][0]["shape"]
+                    self.statements.append(Statement(cnt, padded_size, "Pad", has_pad))
+                    cnt += 1
+                elif op["name"] == "BatchMatMul":
+                    tensor_a = op["input_desc"][0][0]["shape"]
+                    tensor_c = op["output_desc"][0]["shape"]
+                    self.statements.append(Statement(cnt, tensor_c, "Init", has_pad, backbone="BatchMatMul"))
+                    cnt += 1
+                    self.statements.append(Statement(cnt, tensor_c + [tensor_a[2]], "BatchMatMul", has_pad))
+                    cnt += 1
+                else:
+                    self.statements.append(Statement(cnt, tensor_c, "Elem", has_pad, backbone="BatchMatMul"))
                     return

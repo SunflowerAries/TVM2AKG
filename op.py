@@ -12,7 +12,7 @@ class ConvType(Enum):
     DEPTHWISE = 3
 
 onnx2akg = {
-    "nn.dense": "Matmul",
+    "nn.dense": "MatMul",
     "transpose": "Transpose",
     "mean": "ReduceMean",
     "concatenate": "Concat",
@@ -35,7 +35,7 @@ onnx2akg = {
     "fast_erf": "Erf",
     "fast_tanh": "Tanh",
     "nn.fast_softmax": "Softmax",
-    "nn.batch_matmul": "BatchMatmul",
+    "nn.batch_matmul": "BatchMatMul",
     "nn.pad": "PadAkg",
     "take": "Take",
     "multiply": "Mul",
@@ -80,7 +80,7 @@ class OpDesc:
         }
     
     def get_pad(self):
-        if self.akg_name in ["Conv2D", "Matmul"]:
+        if self.akg_name in ["Conv2D", "MatMul"]:
             tensor_b = self.input_desc[1]
             old_shape = tensor_b.shape[0]
             new_shape = ((old_shape + 32) // 32) * 32
@@ -100,7 +100,7 @@ class OpDesc:
             self.output_desc[0].shape[-1] = new_shape
             return [pad, self]
         
-        elif self.akg_name == "BatchMatmul":
+        elif self.akg_name == "BatchMatMul":
             # pad (16, 50, 4096) to (16, 64, 4096)
             tensor_a = self.input_desc[0]
             old_shape = tensor_a.shape[1]
@@ -581,7 +581,7 @@ class OpDesc:
                 }
             ]
         
-        elif self.akg_name == "Matmul":
+        elif self.akg_name == "MatMul":
             assert(self.input_desc[0].shape[-1] == self.input_desc[1].shape[-1])
             return [
                 {
@@ -591,12 +591,12 @@ class OpDesc:
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_x2",
+                    "name": "transpose_x2",
                     "value": False
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_b",
+                    "name": "transpose_b",
                     "value": False
                 },
                 {
@@ -606,12 +606,12 @@ class OpDesc:
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_x1",
+                    "name": "transpose_x1",
                     "value": False
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_a",
+                    "name": "transpose_a",
                     "value": False
                 },
                 {
@@ -626,7 +626,7 @@ class OpDesc:
                 }
             ]
         
-        elif self.akg_name == "BatchMatmul":
+        elif self.akg_name == "BatchMatMul":
             assert(self.input_desc[0].shape[-1] == self.input_desc[1].shape[-2])
             return [
                 {
@@ -636,12 +636,12 @@ class OpDesc:
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_x2",
+                    "name": "transpose_x2",
                     "value": True
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_b",
+                    "name": "transpose_b",
                     "value": True
                 },
                 {
@@ -651,12 +651,12 @@ class OpDesc:
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_x1",
+                    "name": "transpose_x1",
                     "value": False
                 },
                 {
                     "data_type": "bool",
-                    "value": "transpose_a",
+                    "name": "transpose_a",
                     "value": False
                 },
                 {
@@ -743,4 +743,4 @@ class OpDesc:
                     "name": "keep_dims",
                     "value": True
                 }
-            ]            
+            ]

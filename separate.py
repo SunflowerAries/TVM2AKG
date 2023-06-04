@@ -189,7 +189,7 @@ def parse(lines):
                     tensors[input].op.input_desc[1].shape[-1] = tensors[input].shape[-1]
                     tensors[input].op.output_desc[0].shape[-1] = tensors[input].shape[-1]
         # for conv2d/matmul whose reduce axis is divisible by 16, and n-axis not divisible by 16, we'll pad it
-        if ops[0].akg_name in ["Matmul", "Conv2D"] and ops[0].input_desc[1].shape[-1] != 1:
+        if ops[0].akg_name in ["MatMul", "Conv2D"] and ops[0].input_desc[1].shape[-1] != 1:
             # for conv2d/matmul whose reduce axis is divisible by 16, and n-axis not divisible by 16, we'll pad it
             if ops[0].input_desc[0].shape[-1] % 16 == 0 and ops[0].input_desc[1].shape[0] % 16 != 0 and \
                 ops[0].input_desc[0].shape[-1] == ops[0].input_desc[1].shape[-1]:
