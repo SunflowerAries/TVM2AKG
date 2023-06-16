@@ -125,7 +125,7 @@ def @main(%input0: Tensor[(16, 3, 224, 224), float32] /* ty=Tensor[(16, 3, 224, 
   } /* ty=fn (Tensor[(16, 224, 224, 3), float16], Tensor[(64, 7, 7, 3), float16], Tensor[(64), float16], Tensor[(64), float16]) -> Tensor[(16, 112, 112, 64), float16] */;
   %54 = %53(%52, meta[relay.Constant][0] /* ty=Tensor[(64, 7, 7, 3), float16] */, meta[relay.Constant][1] /* ty=Tensor[(64), float16] */, meta[relay.Constant][2] /* ty=Tensor[(64), float16] */) /* ty=Tensor[(16, 112, 112, 64), float16] */;
   %55 = fn (%p026: Tensor[(16, 112, 112, 64), float16] /* ty=Tensor[(16, 112, 112, 64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
-    nn.max_pool2d(%p026, pool_size=[3, 3], strides=[2, 2], padding=[0, 0, 0, 0], layout="NHWC", out_layout="NHWC", ceil_mode=True) /* ty=Tensor[(16, 56, 56, 64), float16] */
+    nn.max_pool2d(%p026, pool_size=[3, 3], strides=[2, 2], padding=[0, 0, 1, 1], layout="NHWC", out_layout="NHWC", ceil_mode=True) /* ty=Tensor[(16, 56, 56, 64), float16] */
   } /* ty=fn (Tensor[(16, 112, 112, 64), float16]) -> Tensor[(16, 56, 56, 64), float16] */;
   %56 = %55(%54) /* ty=Tensor[(16, 56, 56, 64), float16] */;
   %57 = fn (%p025: Tensor[(16, 56, 56, 64), float16] /* ty=Tensor[(16, 56, 56, 64), float16] */, %p120: Tensor[(64, 1, 1, 64), float16] /* ty=Tensor[(64, 1, 1, 64), float16] */, %p220: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p319: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 56, 56, 64), float16] {
@@ -143,7 +143,7 @@ def @main(%input0: Tensor[(16, 3, 224, 224), float32] /* ty=Tensor[(16, 3, 224, 
   } /* ty=fn (Tensor[(16, 56, 56, 64), float16], Tensor[(192, 3, 3, 64), float16], Tensor[(192), float16], Tensor[(192), float16]) -> Tensor[(16, 56, 56, 192), float16] */;
   %60 = %59(%58, meta[relay.Constant][6] /* ty=Tensor[(192, 3, 3, 64), float16] */, meta[relay.Constant][7] /* ty=Tensor[(192), float16] */, meta[relay.Constant][8] /* ty=Tensor[(192), float16] */) /* ty=Tensor[(16, 56, 56, 192), float16] */;
   %61 = fn (%p023: Tensor[(16, 56, 56, 192), float16] /* ty=Tensor[(16, 56, 56, 192), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 192), float16] {
-    nn.max_pool2d(%p023, pool_size=[3, 3], strides=[2, 2], padding=[0, 0, 0, 0], layout="NHWC", out_layout="NHWC", ceil_mode=True) /* ty=Tensor[(16, 28, 28, 192), float16] */
+    nn.max_pool2d(%p023, pool_size=[3, 3], strides=[2, 2], padding=[0, 0, 1, 1], layout="NHWC", out_layout="NHWC", ceil_mode=True) /* ty=Tensor[(16, 28, 28, 192), float16] */
   } /* ty=fn (Tensor[(16, 56, 56, 192), float16]) -> Tensor[(16, 28, 28, 192), float16] */;
   %62 = %61(%60) /* ty=Tensor[(16, 28, 28, 192), float16] */;
   %63 = fn (%p022: Tensor[(16, 28, 28, 192), float16] /* ty=Tensor[(16, 28, 28, 192), float16] */, %p118: Tensor[(64, 1, 1, 192), float16] /* ty=Tensor[(64, 1, 1, 192), float16] */, %p218: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, %p317: Tensor[(64), float16] /* ty=Tensor[(64), float16] */, Primitive=1) -> Tensor[(16, 28, 28, 64), float16] {

@@ -37,7 +37,7 @@ onnx2akg = {
     "nn.fast_softmax": "Softmax",
     "nn.batch_matmul": "BatchMatMul",
     "nn.pad": "PadAkg",
-    "take": "Take",
+    "take": "Gather",
     "multiply": "Mul",
     "divide": "Div",
     "squeeze": "Reshape",
@@ -56,6 +56,10 @@ class FusedOpDesc:
         self.desc = []
         self.is_conv = is_conv
         self.is_split = is_split
+        if len(ops) > 0:
+            self.backbone_op = ops[0].akg_name
+        else:
+            self.backbone_op = ''
 
 class OpDesc:
     def __init__(self, input_str, inputs, outputs):
@@ -78,6 +82,44 @@ class OpDesc:
             "input_desc": [[tensor.to_op_dict(f"input_{index}")] for index, tensor in enumerate(self.input_desc)],
             "output_desc": [tensor.to_op_dict(f"output_{index}") for index, tensor in enumerate(self.output_desc)]
         }
+        
+    def conv2matmul(self, need_flatten=False):
+        if need_flatten:
+            if self.akg_name == "PadAkg":
+                if len(self.pad_head) == 4:
+                    self.pad_head = [self.pad_head[0], self.pad_head[3]]
+                    self.pad_tail = [self.pad_tail[0], self.pad_tail[3]]
+            elif self.akg_name == "UnPadAkgv2":
+                if len(self.unpad_tail) == 4:
+                    self.unpad_tail = [self.unpad_tail[0], self.unpad_tail[3]]
+            
+            for tensor in self.input_desc:
+                if len(tensor.shape) == 4:
+                    tensor.shape = [tensor.shape[0] * tensor.shape[1] * tensor.shape[2], tensor.shape[3]]
+                tensor.format = "DefaultFormat"
+            output_tensor = self.output_desc[0]
+            output_tensor.format = "DefaultFormat"
+            if len(output_tensor.shape) == 4:
+                output_tensor.shape = [output_tensor.shape[0] * output_tensor.shape[1] * output_tensor.shape[2], output_tensor.shape[3]]
+        else:
+            if self.akg_name == "PadAkg":
+                if len(self.pad_head) == 4:
+                    self.pad_head = [self.pad_head[0], self.pad_head[3]]
+                    self.pad_tail = [self.pad_tail[0], self.pad_tail[3]]
+            elif self.akg_name == "UnPadAkgv2":
+                if len(self.unpad_tail) == 4:
+                    self.unpad_tail = [self.unpad_tail[0], self.unpad_tail[3]]
+                    
+            for tensor in self.input_desc:
+                if len(tensor.shape) == 4:
+                    tensor.shape = [tensor.shape[0], tensor.shape[3]]
+                tensor.format = "DefaultFormat"
+            output_tensor = self.output_desc[0]
+            output_tensor.format = "DefaultFormat"
+            if len(output_tensor.shape) == 4:
+                output_tensor.shape = [output_tensor.shape[0], output_tensor.shape[3]]
+        
+        return self
     
     def get_pad(self):
         if self.akg_name in ["Conv2D", "MatMul"]:
@@ -119,7 +161,7 @@ class OpDesc:
         
         elif len(self.input_desc) == 1 or self.akg_name == "Clip":
             tensor_b = self.input_desc[0]
-            assert(tensor_b.shape[-1] % 16 == 0)
+            assert(tensor_b.shape[-1] % 32 == 0)
             self.output_desc[0].shape[-1] = tensor_b.shape[-1]
             return [self]
         
@@ -128,11 +170,11 @@ class OpDesc:
             tensor_a = self.input_desc[0]
             tensor_b = self.input_desc[1]
                         
-            if tensor_a.shape[-1] % 16 != 0 and tensor_a.shape[-1] != 1:
+            if tensor_a.shape[-1] % 32 != 0 and tensor_a.shape[-1] != 1:
                 unpad_tensor = tensor_a
-            elif tensor_b.shape[-1] % 16 != 0 and tensor_b.shape[-1] != 1:
+            elif tensor_b.shape[-1] % 32 != 0 and tensor_b.shape[-1] != 1:
                 unpad_tensor = tensor_b
-            elif self.output_desc[0].shape[-1] % 16 != 0:
+            elif self.output_desc[0].shape[-1] % 32 != 0:
                 self.output_desc[0].shape[-1] = ((self.output_desc[0].shape[-1] + 32) // 32) * 32
                 return [self]
             
@@ -160,12 +202,18 @@ class OpDesc:
         if self.akg_name == "ReduceMean":
             sum_tensor = TensorDesc(f"output_0_{cnt}", self.output_desc[0].data_type, self.output_desc[0].shape, self.output_desc[0].format)
             reduce_sum = OpDesc(None, self.input_desc, [sum_tensor])
-            reduce_sum.axes = [self.axes]
+            reduce_sum.axes = self.axes
             reduce_sum.keepdims = self.keepdims
             reduce_sum.akg_name = "ReduceSum"
             cnt += 1
             
-            div = OpDesc(None, self.input_desc + [sum_tensor], self.output_desc)
+            scalar_tensor = TensorDesc(f"scalar_0", self.output_desc[0].data_type, [1], self.output_desc[0].format)
+            num = 1
+            for ax in self.axes:
+                num *= self.input_desc[0].shape[ax]
+            scalar_tensor.value = num
+            
+            div = OpDesc(None, [sum_tensor, scalar_tensor], self.output_desc)
             self.output_desc[0].tensor_name = f"output_0_{cnt}"
             div.akg_name = "Div"
             cnt += 1
@@ -342,7 +390,6 @@ class OpDesc:
             self.shape = self.output_desc[0].shape
         
         elif self.name == "take":
-            self.index = re.findall(r', (.*?), ', input_str)[0].split()[0]
             self.take_axis = int(re.findall(r'axis=(-?\d+)', input_str)[0])
         
         elif self.name == "squeeze":
@@ -376,7 +423,17 @@ class OpDesc:
         elif self.akg_name == "BroadcastTo":
             if self.input_desc[0].shape == self.output_desc[0].shape:
                 return True
+        
+        elif self.akg_name == "Concat":
+            if len(self.input_desc) == 1:
+                return True
             
+        elif self.akg_name == "LayoutTransform":
+            if self.src_format == "NHWC" and self.dst_format == "NCHW":
+                shapes = self.input_desc[0].shape
+                if shapes[1] == shapes[2] and shapes[1] == 1:
+                    return True
+        
         return False
     
     @property
@@ -592,12 +649,12 @@ class OpDesc:
                 {
                     "data_type": "bool",
                     "name": "transpose_x2",
-                    "value": False
+                    "value": True
                 },
                 {
                     "data_type": "bool",
                     "name": "transpose_b",
-                    "value": False
+                    "value": True
                 },
                 {
                     "data_type": "str",
@@ -717,13 +774,8 @@ class OpDesc:
                 }
             ]
             
-        elif self.akg_name == "Take":
+        elif self.akg_name == "Gather":
             return [
-                {
-                    "data_type": "int",
-                    "name": "index",
-                    "value": self.index
-                },
                 {
                     "data_type": "int",
                     "name": "axis",

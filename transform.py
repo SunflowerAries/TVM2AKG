@@ -27,7 +27,70 @@ def simplify(fused_op):
                 params.append(op.output_desc[0])
                 fused_op.params = params
     fused_op.ops = ops
+    if fused_op.backbone_op == "Conv2D" and len(fused_op.ops) > 1 and fused_op.ops[0].akg_name != "Conv2D":
+        fused_op.backbone_op = fused_op.ops[0].akg_name
     return fused_op
+
+def resimplify(fusedops):
+    ops = []
+    for fusedop in fusedops:
+        fusedop.is_skip = False
+        if len(fusedop.ops) == 0:
+            fusedop.is_skip = True
+        elif fusedop.ops[0].akg_name == "Cast":
+            if len(fusedop.ops) > 1:
+                if fusedop.ops[1].akg_name == "Cast":
+                    fusedop.is_skip = True
+        elif len(fusedop.ops) == 1 and fusedop.ops[0].akg_name == "PadAkg":
+            fusedop.is_skip = True
+        elif len(fusedop.ops) == 2 and fusedop.ops[0].akg_name == "Relu" and fusedop.ops[1].akg_name == "PadAkg":
+            fusedop.is_skip = True
+    for fusedop in fusedops:
+        if fusedop.is_skip != True:
+            ops.append(fusedop)
+    return ops
+
+# we should eliminate some padding since they're propagated twice
+def eliminate_redundant_pad(fusedops):
+    for fusedop in fusedops:
+        ops = []
+        pad_tensor = set()
+        for op in fusedop.ops:
+            skip = False
+            if op.akg_name == "PadAkg":
+                if op.input_desc[0].shape == op.output_desc[0].shape:
+                    skip = True
+                    pad_tensor.add(op.output_desc[0].tensor_name)
+            for input in op.input_desc:
+                if input.tensor_name in pad_tensor:
+                    input.tensor_name = input.tensor_name[4:]
+            if skip != True:
+                ops.append(op)
+                
+        fusedop.ops = ops
+    
+    return fusedops
+
+def conv2matmul(fusedops):
+    for fusedop in fusedops:
+        if fusedop.backbone_op == "Conv2D":
+            convop = fusedop.ops[0]
+            # there may be a padakg op in front of conv2d
+            if convop.akg_name != "Conv2D":
+                convop = fusedop.ops[1]
+            assert(convop.akg_name == "Conv2D")
+            if convop.input_desc[0].shape[1:3] == [1, 1]:
+                for op in fusedop.ops:
+                    op = op.conv2matmul()
+                    if op.akg_name == "Conv2D":
+                        op.akg_name = "MatMul"
+            elif convop.input_desc[1].shape[1:3] == [1, 1]:
+                for op in fusedop.ops:
+                    op = op.conv2matmul(need_flatten=True)
+                    if op.akg_name == "Conv2D":
+                        op.akg_name = "MatMul"
+            
+    return fusedops                        
 
 def parse(lines):
     ops = []
@@ -57,7 +120,7 @@ def parse(lines):
     
     for _, line in enumerate(lines[1:-1]):
 
-        tensor_pattern = re.compile(r'%p\d+|%\d+|\d+\.?\d?f|\d+\.?\d?h')
+        tensor_pattern = re.compile(r'%p\d+|%\d+|\d+\.?\d?f|\d+\.?\d?h|\d+e-?\d+f')
         tensor_matches = tensor_pattern.findall(line)
         split_tensor_pattern = re.compile(r'%p\d+\.\d')
         split_tensor_matches = split_tensor_pattern.findall(line)
@@ -94,7 +157,7 @@ def parse(lines):
         inputs = [tensors[tensor] for tensor in filter(lambda tensor : tensor in tensors, tensor_matches)]
         
         for tensor in tensor_matches:
-            scalar_pattern = re.compile(r'\d+\.?\d?f|\d+\.?\d?h')
+            scalar_pattern = re.compile(r'\d+\.?\d?f|\d+\.?\d?h|\d+e-?\d+f')
             scalar_matches = scalar_pattern.findall(tensor)
             if len(scalar_matches) > 0:
                 data_type = "float32" if scalar_matches[0][-1] == 'f' else "float16"
@@ -104,6 +167,12 @@ def parse(lines):
                 inputs.append(scalar)
         
         op = OpDesc(line, inputs, output if isinstance(output, list) else [output])
+        
+        if len(op.input_desc) == 1 and op.name == "take":
+            scalar = TensorDesc(f"input_{input_cnt}", "int32", [1], fmt)
+            input_cnt += 1
+            op.input_desc.append(scalar)
+        
         for input in inputs:
             if input.is_output == False and input not in params and input.value == None:
             # if input.is_output == False and ("pad_" not in input.tensor_name):
@@ -117,33 +186,14 @@ def parse(lines):
         elif op.akg_name != '':
             ops.append(op)
             cnt += 1
-        
-    # if len(ops) > 0:
-    #     if is_conv:
-    #         inputs = re.findall(r'(%p\d+)', lines[0])
-    #         assert(len(inputs) == len(op_dict[opid].inputs))
-    #         for i, input in enumerate(inputs[1:]):
-    #             if (op_dict[opid].inputs[i+1] in graphtensors) and graphtensors[op_dict[opid].inputs[i+1]].shape != tensors[input].shape:
-    #                 tensors[input].shape = graphtensors[op_dict[opid].inputs[i+1]].shape
-    #                 tensors[input].op.input_desc[1].shape[-1] = tensors[input].shape[-1]
-    #                 tensors[input].op.output_desc[0].shape[-1] = tensors[input].shape[-1]
-    #     # for conv2d/matmul whose reduce axis is divisible by 16, and n-axis not divisible by 16, we'll pad it
-    #     if ops[0].akg_name in ["MatMul", "Conv2D"] and ops[0].input_desc[1].shape[-1] != 1:
-    #         # for conv2d/matmul whose reduce axis is divisible by 16, and n-axis not divisible by 16, we'll pad it
-    #         if ops[0].input_desc[0].shape[-1] % 16 == 0 and ops[0].input_desc[1].shape[0] % 16 != 0 and \
-    #             ops[0].input_desc[0].shape[-1] == ops[0].input_desc[1].shape[-1]:
-    #             ops = pad(ops)
-    #     elif len(ops) > 1 and ops[1].akg_name in ["Conv2D"]:
-    #         if ops[1].input_desc[0].shape[-1] % 16 == 0 and ops[1].input_desc[1].shape[0] % 16 != 0 and \
-    #             ops[1].input_desc[0].shape[-1] == ops[1].input_desc[1].shape[-1]:
-    #             ops = ops[:2] + pad(ops[2:])
-    #     else:
-    #         return ops, params
-        
-    #     if opid in op_dict and len(ops) > 1:
-    #         if ops[-1].akg_name == "UnPadAkgv2" and all(d == 'conv2d' for d in graphtensors[op_dict[opid].output].desc):
-    #             graphtensors[op_dict[opid].output].shape = ops[1].output_desc[0].shape
-    #             ops = ops[:-1]
+            
+        elif op.name == "get_tuple":
+            tensors.pop(tensor_matches[0])
+            tensors[list(tensors.keys())[0]] = inputs[0]
+            
+        elif op.name == "image.resize2d":
+            output.tensor_name = inputs[0].tensor_name
+            params = [output]
     
     return FusedOpDesc(opid, ops, params, is_conv, is_split)
 
@@ -170,7 +220,17 @@ def to_json(ops, params):
         "platform": "AKG",
         "process": "cuda"
     }
-    return json_obj, visited
+    
+    succeed = True
+    
+    if visited != True:
+        for op in ops:
+            if op.akg_name == "Conv2D":
+                if op.input_desc[0].shape[-1] % 32 != 0 and op.input_desc[0].shape[-1] != 3:
+                    succeed = False
+                    print(simple_colors.red("skip this conv fused op due to its input channel not divisible by 32"))
+                    print(json.dumps(json_obj, indent=4))
+    return json_obj, visited != True and succeed
 
 dirpath = os.path.join(os.getcwd(), 'workloads')
 infopath = os.path.join(os.getcwd(), 'infos')
@@ -222,23 +282,32 @@ for filename in os.listdir(dirpath):
                     for tensor in op_dict[op_register[1]].inputs:
                         if tensor.find("%") == 0:
                             op_dict[graphtensors[tensor]].desc.append(op_register[1])
+                else:
+                    op_register_pattern = re.compile(r'^  (%\d+)\(%\d+')
+                    op_register = op_register_pattern.findall(lines[lineno])[0]
+                    op_dict[op_register].inputs = [next(filter(lambda p : p != '', param)) for param in re.findall(r'(%\d+)|(meta)|(\d+f\d+)', lines[lineno])[1:]]
+                    for tensor in op_dict[op_register].inputs:
+                        if tensor.find("%") == 0:
+                            op_dict[graphtensors[tensor]].desc.append(op_register)
                 lineno += 1
             
             while lineno < len(lines) and len(lines[lineno]) < 3:
                 lineno += 1
         
         # list of fusedops(id, inputs, output, desc, ops), map(id: fuesd_op)
-        # global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = eliminate_zero_ops(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
+        global_ops = resimplify(global_ops)
         global_ops = epilogue_fuse(global_ops, op_dict, graphtensors)
         
         global_ops = pad(global_ops, op_dict, graphtensors)
+        global_ops = conv2matmul(global_ops)
+        global_ops = eliminate_redundant_pad(global_ops)
         
         for fusedop in global_ops:
-            json_obj, visited = to_json(fusedop.ops, fusedop.params)
+            json_obj, need_dump = to_json(fusedop.ops, fusedop.params)
         
-            if not visited:
+            if need_dump:
                 json_name = os.path.join(infopath, json_obj['op'] + '.json')
                 json_obj['filename'] = filename
                 json_obj['lineno'] = fusedop.lineno
