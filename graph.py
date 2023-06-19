@@ -506,6 +506,32 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
                     op_dict.pop(prelogue_op.id)
                 else:
                     prelogue_op.ops = prelogue_op.ops[:-1]
+            elif len(prelogue_op.desc) == 1 and prelogue_op.ops[-1].akg_name == "Add":
+                
+                add_op = prelogue_op.ops[-1]
+                if add_op.input_desc[0].shape == add_op.input_desc[1].shape:
+                    continue
+                
+                replace_tensor_name = {}
+                replace_tensor_name["input_0"] = add_op.output_desc[0].tensor_name
+                output_cnt = int(add_op.output_desc[0].tensor_name.split('_')[-1]) + 1
+                new_ops = prelogue_op.ops
+                for op in fusedop.ops:
+                    for i, input in enumerate(op.input_desc):
+                        if input.tensor_name == "input_0":
+                            op.input_desc[i] = add_op.output_desc[0]
+                    origin_name = op.output_desc[0].tensor_name
+                    op.output_desc[0].tensor_name = f"output_0_{int(origin_name.split('_')[-1])+output_cnt}"
+                    replace_tensor_name[origin_name] = op.output_desc[0].tensor_name
+                    new_ops.append(op)
+                
+                fusedop.ops = new_ops
+                fusedop.params = prelogue_op.params
+                fusedop.inputs = prelogue_op.inputs
+                prelogue_op.is_skip = True
+                op_dict[graphtensors[prelogue_op.inputs[0]]].desc.remove(prelogue_op.id)
+                op_dict[graphtensors[prelogue_op.inputs[0]]].desc.append(fusedop.id)
+                op_dict.pop(prelogue_op.id)
             elif len(prelogue_op.desc) == 3:
                 if (len(prelogue_op.ops) > 0 and prelogue_op.ops[-1].akg_name == "Cast") or \
                    (len(prelogue_op.ops) > 1 and prelogue_op.ops[-2].akg_name == "Cast"):
@@ -653,6 +679,19 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
                 epilogue_op.is_skip = True
     
     for fusedop in fusedops:
+        new_ops = []
+        for op in fusedop.ops:
+            if op.akg_name == "Transpose" and op.axes == [0, 2, 3, 1]:
+                new_ops = new_ops[:-1]
+                op.input_desc[0] = new_ops[-1].output_desc[0]
+                shapes = op.input_desc[0].shape
+                op.output_desc[0].shape = [shapes[0], shapes[2], shapes[1]]
+                op.axes = [0, 2, 1]
+                new_ops.append(op)
+                break
+            else:
+                new_ops.append(op)
+        fusedop.ops = new_ops
         if fusedop.is_skip != True:
             ops.append(fusedop)
             

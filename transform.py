@@ -35,12 +35,24 @@ def resimplify(fusedops):
     ops = []
     for fusedop in fusedops:
         fusedop.is_skip = False
+        op_names = "_".join([op.akg_name for op in fusedop.ops])
         if len(fusedop.ops) == 0:
             fusedop.is_skip = True
         elif fusedop.ops[0].akg_name == "Cast":
             if len(fusedop.ops) > 1:
                 if fusedop.ops[1].akg_name == "Cast":
                     fusedop.is_skip = True
+                elif fusedop.ops[1].akg_name == "Gather":
+                    cast_op = fusedop.ops[0]
+                    fusedop.ops = fusedop.ops[1:]
+                    fusedop.ops[0].input_desc[1].tensor_name = cast_op.input_desc[0].tensor_name
+                    fusedop.params.remove(cast_op.input_desc[0])
+                    fusedop.params.append(fusedop.ops[0].input_desc[1])
+        elif op_names == "LayoutTransform_Reshape_Transpose_Concat_Add":
+            new_ops = [fusedop.ops[-2], fusedop.ops[-1]]
+            fusedop.params[0].shape = new_ops[0].input_desc[1].shape
+            new_ops[0].input_desc[1] = fusedop.params[0]
+            fusedop.ops = new_ops
         elif len(fusedop.ops) == 1 and fusedop.ops[0].akg_name == "PadAkg":
             fusedop.is_skip = True
         elif len(fusedop.ops) == 2 and fusedop.ops[0].akg_name == "Relu" and fusedop.ops[1].akg_name == "PadAkg":
@@ -84,7 +96,7 @@ def conv2matmul(fusedops):
                     op = op.conv2matmul()
                     if op.akg_name == "Conv2D":
                         op.akg_name = "MatMul"
-            elif convop.input_desc[1].shape[1:3] == [1, 1]:
+            elif convop.input_desc[1].shape[1:3] == [1, 1] and convop.strides == [1, 1]:
                 for op in fusedop.ops:
                     op = op.conv2matmul(need_flatten=True)
                     if op.akg_name == "Conv2D":
@@ -152,6 +164,7 @@ def parse(lines):
         
         if " = " in line:
             tensors[tensor_matches[0]] = output
+            output.uid = tensor_matches[0]
             tensor_matches = tensor_matches[1:]
         
         inputs = [tensors[tensor] for tensor in filter(lambda tensor : tensor in tensors, tensor_matches)]
@@ -189,7 +202,7 @@ def parse(lines):
             
         elif op.name == "get_tuple":
             tensors.pop(tensor_matches[0])
-            tensors[list(tensors.keys())[0]] = inputs[0]
+            tensors[output.uid] = inputs[0]
             
         elif op.name == "image.resize2d":
             output.tensor_name = inputs[0].tensor_name
@@ -206,26 +219,29 @@ def to_json(ops, params):
         op_hashset[opname] = set()
     
     visited = hash_value in op_hashset[opname]
+    succeed = True
     op_hashset[opname].add(hash_value)
     
-    opname += f'_{hash_value}'
     json_obj = {
         "composite": True,
         "composite_graph": "68.283",
         "id": 0,
         "input_desc": [[i.to_dict()] for i in params],
-        "op": opname,
+        "op": opname + f'_{hash_value}',
         "op_desc": [op.to_dict() for op in ops],
         "output_desc": [o.to_dict() for o in ops[-1].output_desc],
         "platform": "AKG",
         "process": "cuda"
     }
     
-    succeed = True
+    if opname in ["Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_Split", "Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_LayoutTransform"]:
+        succeed = False
+        print(simple_colors.red("unsupported op"))
+        print(json.dumps(json_obj, indent=4))
     
     if visited != True:
         for op in ops:
-            if op.akg_name == "Conv2D":
+            if op.akg_name in ["Conv2D", "MatMul"]:
                 if op.input_desc[0].shape[-1] % 32 != 0 and op.input_desc[0].shape[-1] != 3:
                     succeed = False
                     print(simple_colors.red("skip this conv fused op due to its input channel not divisible by 32"))

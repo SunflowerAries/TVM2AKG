@@ -23,5 +23,9 @@ for filename in os.listdir(infopath):
                         continue
             mindop = MindOpDesc(json_obj, op_matches[0][-1])
             mindop.op = filename.split('.')[0] + '_0'
+            if json_obj["filename"] == "vit_log" and json_obj["lineno"] == 280:
+                mindop.statements[1].cnt = 2
+                mindop.statements[2].cnt = 3
+                mindop.statements[3].cnt = 1
             with open(os.path.join(os.getcwd(), 'mindtricks', mindop.op + '.mindtrick-template.json'), 'w') as mindtricks:
                 mindtricks.write(json.dumps(to_json(mindop), indent=4))
