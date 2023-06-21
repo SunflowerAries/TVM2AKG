@@ -211,11 +211,11 @@ class OpDesc:
             num = 1
             for ax in self.axes:
                 num *= self.input_desc[0].shape[ax]
-            scalar_tensor.value = num
+            scalar_tensor.value = 1/num
             
             div = OpDesc(None, [sum_tensor, scalar_tensor], self.output_desc)
             self.output_desc[0].tensor_name = f"output_0_{cnt}"
-            div.akg_name = "Div"
+            div.akg_name = "Mul"
             cnt += 1
             return [reduce_sum, div], cnt
     

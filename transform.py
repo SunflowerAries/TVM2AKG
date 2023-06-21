@@ -104,6 +104,25 @@ def conv2matmul(fusedops):
             
     return fusedops                        
 
+def refactor_reduce_op(fusedops):
+    for fusedop in fusedops:
+        op_names = "_".join([op.akg_name for op in fusedop.ops])
+        # mean/variance
+        if "ReduceSum_Mul" in op_names:
+            reduce_op = fusedop.ops[-2]
+            # exchange reducesum and mul
+            if reduce_op.akg_name == "ReduceSum":
+                mul_op = fusedop.ops[-1]
+                mul_op.input_desc[0] = reduce_op.input_desc[0]
+                mul_op_tensor_name = mul_op.output_desc[0].tensor_name
+                mul_op.output_desc[0].tensor_name = reduce_op.output_desc[0].tensor_name
+                mul_op.output_desc[0].shape = mul_op.input_desc[0].shape
+                reduce_op.input_desc[0] = mul_op.output_desc[0]
+                reduce_op.output_desc[0].tensor_name = mul_op_tensor_name
+                fusedop.ops[-2] = mul_op
+                fusedop.ops[-1] = reduce_op
+    return fusedops
+
 def parse(lines):
     ops = []
     params = []
@@ -314,11 +333,12 @@ for filename in os.listdir(dirpath):
         global_ops = eliminate_zero_ops(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = resimplify(global_ops)
-        global_ops = epilogue_fuse(global_ops, op_dict, graphtensors)
+        global_ops = epilogue_fuse(global_ops, op_dict)
         
-        global_ops = pad(global_ops, op_dict, graphtensors)
+        global_ops = pad(global_ops, op_dict)
         global_ops = conv2matmul(global_ops)
         global_ops = eliminate_redundant_pad(global_ops)
+        global_ops = refactor_reduce_op(global_ops)
         
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop.ops, fusedop.params)
