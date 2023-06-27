@@ -82,6 +82,21 @@ class Statement:
                 tmp[i] = 1
                 coeffs.append(str(tmp))
             return coeffs
+        
+        elif self.kind == "Split":
+            coeffs = []
+            if self.has_pad:
+                tmp = [0] * (len(self.axes) + 1)
+                tmp[-1] = 1
+                coeffs.append(str(tmp))
+            for i in range(len(self.axes)):
+                tmp = [0] * (len(self.axes) + 1)
+                tmp[i] = 1
+                tmp = list(str(tmp))
+                if i == len(self.axes) - 1:
+                    tmp[-2] = '?'
+                coeffs.append(''.join(tmp))
+            return coeffs
 
 class MindOpDesc:
     def __init__(self, json_obj, backbone):
@@ -194,4 +209,9 @@ class MindOpDesc:
                 if op["name"] == "Transpose":
                     output_tensor = op["output_desc"][0]["shape"]
                     self.statements.append(Statement(cnt, output_tensor, "Transpose", has_pad))
+                    break
+                elif op["name"] == "Split":
+                    for output_tensor in op["output_desc"]:
+                        self.statements.append(Statement(cnt, output_tensor["shape"], "Split", has_pad))
+                        cnt += 1
                     break

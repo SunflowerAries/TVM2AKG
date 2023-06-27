@@ -449,8 +449,6 @@ def recompute_cast(fusedop, op_dict, graphtensors, descs):
             for i, input in enumerate(op.input_desc):
                 if input.tensor_name == "input_0":
                     op.input_desc[i] = last_tensor
-                elif input.tensor_name in replace_tensor_name:
-                    input.tensor_name = replace_tensor_name[input.tensor_name]
                 elif input.tensor_name.find("input") == 0:
                     replace_tensor_name[input.tensor_name] = "input_{}".format(int(input.tensor_name.split('_')[-1]) + input_cnt)
                     input.tensor_name = replace_tensor_name[input.tensor_name]
@@ -481,9 +479,8 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
                 new_ops = [cast_op]
                 for op in fusedop.ops:
                     for i, input in enumerate(op.input_desc):
-                        if input.tensor_name in replace_tensor_name:
-                            if input.tensor_name == "input_0":
-                                op.input_desc[i] = cast_op.output_desc[0]
+                        if input.tensor_name == "input_0":
+                            op.input_desc[i] = cast_op.output_desc[0]
                         else:
                             input_name = re.findall(r'input_(\d+)', input.tensor_name)
                             if len(input_name) > 0:
@@ -653,11 +650,8 @@ def epilogue_fuse(fusedops, op_dict):
                 
                 for op in epilogue_op.ops:
                     for i, input in enumerate(op.input_desc):
-                        if input.tensor_name in replace_tensor_name:
-                            if input.tensor_name == "input_0":
-                                op.input_desc[i] = batch_matmul_output
-                            else:
-                                op.input_desc[i].tensor_name = replace_tensor_name[input.tensor_name]
+                        if input.tensor_name == "input_0":
+                            op.input_desc[i] = batch_matmul_output
                         else:
                             input_name = re.findall(r'input_(\d+)', input.tensor_name)
                             if len(input_name) > 0:
@@ -690,11 +684,8 @@ def epilogue_fuse(fusedops, op_dict):
                     continue
                 for op in epilogue_op.ops:
                     for i, input in enumerate(op.input_desc):
-                        if input.tensor_name in replace_tensor_name:
-                            if input.tensor_name == "input_0":
-                                op.input_desc[i] = last_op_output
-                            else:
-                                op.input_desc[i].tensor_name = replace_tensor_name[input.tensor_name]
+                        if input.tensor_name == "input_0":
+                            op.input_desc[i] = last_op_output
                         else:
                             input_name = re.findall(r'input_(\d+)', input.tensor_name)
                             if len(input_name) > 0:
