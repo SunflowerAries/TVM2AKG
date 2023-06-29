@@ -71,7 +71,7 @@ def propagate_conv_pad(fusedop, op_dict):
         for op in fusedop.ops[1:]:
             ops += op.get_pad()
             
-        if all([op_dict[desc].is_conv for desc in fusedop.desc]) and tensor_b.shape[0] % 8 == 0:
+        if all([op_dict[desc].is_conv and op_dict[desc].backbone_op.conv_type == ConvType.NORM for desc in fusedop.desc]) and tensor_b.shape[0] % 8 == 0:
             for desc in fusedop.desc:
                 if op_dict[desc].inputs[0] == fusedop.output:
                     propagate_conv_pad(op_dict[desc], op_dict)
@@ -191,7 +191,7 @@ def pad(fusedops, op_dict):
     
     for fusedop in fusedops:
         backbone_op = fusedop.ops[0]
-        if backbone_op.akg_name == "Conv2D":
+        if backbone_op.akg_name == "Conv2D" and backbone_op.conv_type == ConvType.NORM:
             tensor_a = backbone_op.input_desc[0]
             tensor_b = backbone_op.input_desc[1]
             old_shape = tensor_b.shape[0]
@@ -204,10 +204,10 @@ def pad(fusedops, op_dict):
             
             assert(tensor_a.shape[-1] == tensor_b.shape[-1])
             
-            if tensor_a.shape[-1] % 16 != 0:
+            if tensor_a.shape[-1] % 8 != 0:
                 if tensor_a.shape[-1] != 3:
                     fusedop.is_skip = True
-                print(simple_colors.red("input channel not divisible by 16{}: ".format("[omitted]" if tensor_a.shape[-1] != 3 else "")), tensor_a.shape, tensor_b.shape)
+                print(simple_colors.red("input channel not divisible by 8{}: ".format("[omitted]" if tensor_a.shape[-1] != 3 else "")), tensor_a.shape, tensor_b.shape)
                 continue
                 
             if tensor_b.shape[0] % 32 != 0:
@@ -216,7 +216,7 @@ def pad(fusedops, op_dict):
                     ops += op.get_pad()
                 # following is all conv and this conv's output channel(which is also following conv's input channel) is multiplies of 8
                 # and there do not exist padding on image, then we propagate the padding
-                if all([op_dict[desc].is_conv for desc in fusedop.desc]):
+                if all([op_dict[desc].is_conv and op_dict[desc].backbone_op.conv_type == ConvType.NORM for desc in fusedop.desc]):
                     print("we're progagating padding")
                     for desc in fusedop.desc:
                         if op_dict[desc].inputs[0] == fusedop.output:
@@ -226,6 +226,18 @@ def pad(fusedops, op_dict):
                     fusedop.ops = ops                    
                 else:
                     fusedop.ops = unpad(ops, old_shape, new_shape)
+            
+            # here maybe backbone op is not the first op due to padding
+            backbone_op = fusedop.backbone_op
+            tensor_a = backbone_op.input_desc[0]
+            tensor_b = backbone_op.input_desc[1]
+            if tensor_a.shape[-1] % 32 != 0:
+                assert(tensor_a.shape[-1] == tensor_b.shape[-1])
+                assert(any(backbone_op.pad) != True)
+                backbone_idx = fusedop.ops.index(backbone_op)
+                ops = fusedop.ops[:backbone_idx] + backbone_op.get_pad(pad_k = True) + fusedop.ops[backbone_idx+1:]
+                fusedop.ops = ops
+                
         
         elif backbone_op.akg_name == "MatMul":
             tensor_b = backbone_op.input_desc[1]
@@ -297,7 +309,7 @@ def pad(fusedops, op_dict):
     
     # here we put all the pad ops into the beginning
     def sortop(fusedop):
-        if fusedop.backbone_op in ["Conv2D", "MatMul", "BatchMatMul"]:
+        if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
             ops = []
             for op in fusedop.ops:
                 if op.akg_name in ["PadAkg", "Conv2D", "MatMul", "BatchMatMul"]:
@@ -316,7 +328,7 @@ def pad(fusedops, op_dict):
     
     return new_fusedops
 
-def eliminate_zero_ops(fusedops, op_dict, graphtensors):
+def eliminate_zero_ops_and_pad_prop(fusedops, op_dict, graphtensors):
     ops = []
     to_propagate = []
     
@@ -347,7 +359,7 @@ def eliminate_zero_ops(fusedops, op_dict, graphtensors):
             op_dict.pop(fusedop.id)
             
     for fusedop in to_propagate:
-        if all([op_dict[desc].is_conv for desc in fusedop.desc]):
+        if all([op_dict[desc].is_conv and op_dict[desc].backbone_op.conv_type == ConvType.NORM for desc in fusedop.desc]):
             output_tensor = fusedop.ops[-1].output_desc[0]
                 
             old_shape = output_tensor.shape[-1]
@@ -466,7 +478,7 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
     for fusedop in fusedops:
         fusedop.is_skip = False
         # prelogue fuse cast for softmax, mean, avgpool
-        if fusedop.backbone_op in ["Pool2D", "ReduceMax", "ReduceSum"]:
+        if fusedop.backbone_op.akg_name in ["Pool2D", "ReduceMax", "ReduceSum"]:
             prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
             if len(prelogue_op.desc) == 1 and prelogue_op.ops[-1].akg_name == "Cast":
                 replace_tensor_name = {}
@@ -605,7 +617,7 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
 
         elif len(fusedop.ops) == 2 and fusedop.ops[0].akg_name == "Reshape" and fusedop.ops[1].akg_name == "Cast":
             prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
-            if prelogue_op.backbone_op in ["Pool2D", "ReduceMax", "ReduceSum"]:
+            if prelogue_op.backbone_op.akg_name in ["Pool2D", "ReduceMax", "ReduceSum"]:
                 fusedop.is_skip = True
                 prelogue_op.desc.remove(fusedop.id)
                 prelogue_op.desc.append(fusedop.desc)

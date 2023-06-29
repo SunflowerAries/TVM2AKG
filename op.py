@@ -4,7 +4,7 @@ import copy
 import simple_colors
 from enum import Enum
 
-depthwise_omit = True
+depthwise_omit = False
 
 class ConvType(Enum):
     NORM = 1
@@ -57,9 +57,9 @@ class FusedOpDesc:
         self.is_conv = is_conv
         self.is_split = is_split
         if len(ops) > 0:
-            self.backbone_op = ops[0].akg_name
+            self.backbone_op = ops[0]
         else:
-            self.backbone_op = ''
+            self.backbone_op = None
 
 class OpDesc:
     def __init__(self, input_str, inputs, outputs):
@@ -121,26 +121,62 @@ class OpDesc:
         
         return self
     
-    def get_pad(self):
+    def get_pad(self, pad_k=False):
         if self.akg_name in ["Conv2D", "MatMul"]:
-            tensor_b = self.input_desc[1]
-            old_shape = tensor_b.shape[0]
-            new_shape = ((old_shape + 32) // 32) * 32
-            shapes = copy.deepcopy(tensor_b.shape)
-            shapes[0] = new_shape
-            pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
-            pad = OpDesc(None, [tensor_b], [pad_tensor])
-            pad.akg_name = "PadAkg"
-            if self.akg_name == "Conv2D":
-                pad.pad_head = [0, 0, 0, 0]
-                pad.pad_tail = [new_shape - old_shape, 0, 0, 0]
+            if pad_k:
+                tensor_a = self.input_desc[0]
+                assert(tensor_a.tensor_name.find("pad_") == -1)
+                assert(self.akg_name == "Conv2D")
+                old_shape = tensor_a.shape[-1]
+                new_shape = ((old_shape + 32) // 32) * 32
+                shapes = copy.deepcopy(tensor_a.shape)
+                shapes[-1] = new_shape
+                pad_a_tensor = TensorDesc("pad_" + tensor_a.tensor_name, tensor_a.data_type, shapes, tensor_a.format)
+                pad_a = OpDesc(None, [tensor_a], [pad_a_tensor])
+                pad_a.akg_name = "PadAkg"
+                pad_a.pad_head = [0, 0, 0, 0]
+                pad_a.pad_tail = [0, 0, 0, new_shape - old_shape]
+                pad_a.pad_value = 0
+                pad_a_tensor.op = pad_a
+                self.input_desc[0] = pad_a_tensor
+                
+                tensor_b = self.input_desc[1]
+                if tensor_b.tensor_name.find("pad_") != -1:
+                    tensor_b.op.pad_tail[-1] = new_shape - old_shape
+                    tensor_b.shape[-1] = new_shape
+                    return [pad_a, self]
+                else:
+                    shapes = copy.deepcopy(tensor_b.shape)
+                    shapes[-1] = new_shape
+                    pad_b_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+                    pad_b = OpDesc(None, [tensor_b], [pad_b_tensor])
+                    pad_b.akg_name = "PadAkg"
+                    pad_b.pad_head = [0, 0, 0, 0]
+                    pad_b.pad_tail = [0, 0, 0, new_shape - old_shape]
+                    pad_b.pad_value = 0
+                    pad_b_tensor.op = pad_b
+                    self.input_desc[1] = pad_b_tensor
+                    return [pad_a, pad_b, self]
             else:
-                pad.pad_head = [0, 0]
-                pad.pad_tail = [new_shape - old_shape, 0]
-            pad.pad_value = 0
-            self.input_desc[1] = pad_tensor
-            self.output_desc[0].shape[-1] = new_shape
-            return [pad, self]
+                tensor_b = self.input_desc[1]
+                old_shape = tensor_b.shape[0]
+                new_shape = ((old_shape + 32) // 32) * 32
+                shapes = copy.deepcopy(tensor_b.shape)
+                shapes[0] = new_shape
+                pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+                pad = OpDesc(None, [tensor_b], [pad_tensor])
+                pad.akg_name = "PadAkg"
+                if self.akg_name == "Conv2D":
+                    pad.pad_head = [0, 0, 0, 0]
+                    pad.pad_tail = [new_shape - old_shape, 0, 0, 0]
+                else:
+                    pad.pad_head = [0, 0]
+                    pad.pad_tail = [new_shape - old_shape, 0]
+                pad.pad_value = 0
+                pad_tensor.op = pad
+                self.input_desc[1] = pad_tensor
+                self.output_desc[0].shape[-1] = new_shape
+                return [pad, self]
         
         elif self.akg_name == "BatchMatMul":
             # pad (16, 50, 4096) to (16, 64, 4096)
@@ -410,7 +446,7 @@ class OpDesc:
     def is_redundant(self):
         if self.akg_name == "Conv2D":
             if self.conv_type == ConvType.GROUPED:
-                print(simple_colors.blue("Grouped Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)
+                print(simple_colors.blue("Grouped Conv[omitted]: "), self.input_desc[0].shape, self.input_desc[1].shape)
                 return True
             elif self.conv_type == ConvType.DEPTHWISE and depthwise_omit:
                 print(simple_colors.green("Depthwise Conv{}: ".format("[omitted]" if depthwise_omit else "")), self.input_desc[0].shape, self.input_desc[1].shape)

@@ -27,8 +27,8 @@ def simplify(fused_op):
                 params.append(op.output_desc[0])
                 fused_op.params = params
     fused_op.ops = ops
-    if fused_op.backbone_op == "Conv2D" and len(fused_op.ops) > 1 and fused_op.ops[0].akg_name != "Conv2D":
-        fused_op.backbone_op = fused_op.ops[0].akg_name
+    if fused_op.backbone_op != None and fused_op.backbone_op.akg_name == "Conv2D" and len(fused_op.ops) > 1 and fused_op.ops[0].akg_name != "Conv2D":
+        fused_op.backbone_op = fused_op.ops[0]
     return fused_op
 
 def resimplify(fusedops):
@@ -85,11 +85,14 @@ def eliminate_redundant_pad(fusedops):
 
 def conv2matmul(fusedops):
     for fusedop in fusedops:
-        if fusedop.backbone_op == "Conv2D":
+        if fusedop.backbone_op.akg_name == "Conv2D" and fusedop.backbone_op.conv_type == ConvType.NORM:
             convop = fusedop.ops[0]
             # there may be a padakg op in front of conv2d
             if convop.akg_name != "Conv2D":
-                convop = fusedop.ops[1]
+                if fusedop.ops[1].akg_name == "Conv2D":
+                    convop = fusedop.ops[1]
+                else:
+                    convop = fusedop.ops[2]
             assert(convop.akg_name == "Conv2D")
             if convop.input_desc[0].shape[1:3] == [1, 1]:
                 for op in fusedop.ops:
@@ -229,7 +232,7 @@ def parse(lines):
     
     return FusedOpDesc(opid, ops, params, is_conv, is_split)
 
-def to_json(ops, params):
+def to_json(ops, params, filename, lineno):
     opname = "Fused_{}".format('_'.join([op.akg_name for op in ops]))
     params.sort(key=lambda param: param.tensor_name)
     hash_value = hash(str([[input.shape for input in op.input_desc] for op in ops])) + sys.maxsize + 1
@@ -250,7 +253,9 @@ def to_json(ops, params):
         "op_desc": [op.to_dict() for op in ops],
         "output_desc": [o.to_dict() for o in ops[-1].output_desc],
         "platform": "AKG",
-        "process": "cuda"
+        "process": "cuda",
+        "filename": filename,
+        "lineno": lineno
     }
     
     if opname in ["Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_Split", "Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_LayoutTransform"]:
@@ -261,6 +266,8 @@ def to_json(ops, params):
     if visited != True:
         for op in ops:
             if op.akg_name in ["Conv2D", "MatMul"]:
+                if op.akg_name == "Conv2D" and op.conv_type == ConvType.DEPTHWISE:
+                    break
                 if op.input_desc[0].shape[-1] % 32 != 0 and op.input_desc[0].shape[-1] != 3:
                     succeed = False
                     print(simple_colors.red("skip this conv fused op due to its input channel not divisible by 32"))
@@ -330,7 +337,7 @@ for filename in os.listdir(dirpath):
                 lineno += 1
         
         # list of fusedops(id, inputs, output, desc, ops), map(id: fuesd_op)
-        global_ops = eliminate_zero_ops(global_ops, op_dict, graphtensors)
+        global_ops = eliminate_zero_ops_and_pad_prop(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = resimplify(global_ops)
         global_ops = epilogue_fuse(global_ops, op_dict)
@@ -341,11 +348,9 @@ for filename in os.listdir(dirpath):
         global_ops = refactor_reduce_op(global_ops)
         
         for fusedop in global_ops:
-            json_obj, need_dump = to_json(fusedop.ops, fusedop.params)
+            json_obj, need_dump = to_json(fusedop.ops, fusedop.params, filename, fusedop.lineno)
         
             if need_dump:
                 json_name = os.path.join(infopath, json_obj['op'] + '.json')
-                json_obj['filename'] = filename
-                json_obj['lineno'] = fusedop.lineno
                 with open(json_name, 'w') as json_file:
                     json_file.write(json.dumps(json_obj, indent=4))

@@ -21,6 +21,8 @@ copy the generated `infos/` and `mindtricks/` directories to akg repository
 If you want to split the workloads into trainset and testset then use `separate.py` to split infos into trainset and testset
 
 ```
+mkdir trains
+mkdir tests
 python3 separate.py
 ```
 
@@ -47,4 +49,4 @@ python3 count.py
 
 we have some assumption:
 - we will pad kernel for conv2d and matmul when their n-axis(output channel size for conv2d) or reduce-axis is not divisible by 32 for ease of codegen on tensorcore
-- further, we have one another constraint at now that we only pad kernels whose n-axis is not divisible by 16 but divisbile by 8, the filtered out cases could be handled by isl schedule tree's isolate, but are not considered recently.
+- further, we have one another constraint at now that we only pad kernels whose n-axis is not divisible by 32 but divisbile by 8, the filtered out cases could be handled by isl schedule tree's isolate, but are not considered recently.
