@@ -223,7 +223,7 @@ def pad(fusedops, op_dict):
                             propagate_conv_pad(op_dict[desc], op_dict)
                         else:
                             op_dict[desc].params[op_dict[desc].inputs.index(fusedop.output)].shape[-1] = new_shape
-                    fusedop.ops = ops                    
+                    fusedop.ops = ops
                 else:
                     fusedop.ops = unpad(ops, old_shape, new_shape)
             

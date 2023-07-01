@@ -1,9 +1,15 @@
 import json, re, os, sys
+from enum import Enum
 from op import *
 from tensor import *
 from graph import *
 
 op_hashset = {}
+
+class SoftMax(Enum):
+    NORM_MAX = 1
+    MULTIDIM_MAX = 2
+    NORM_SUM = 3
 
 def simplify(fused_op):
     ops = []
@@ -108,6 +114,7 @@ def conv2matmul(fusedops):
     return fusedops                        
 
 def refactor_reduce_op(fusedops):
+    ops = []
     for fusedop in fusedops:
         op_names = "_".join([op.akg_name for op in fusedop.ops])
         # mean/variance
@@ -124,7 +131,31 @@ def refactor_reduce_op(fusedops):
                 reduce_op.output_desc[0].tensor_name = mul_op_tensor_name
                 fusedop.ops[-2] = mul_op
                 fusedop.ops[-1] = reduce_op
-    return fusedops
+            ops.append(fusedop)
+        elif "ReduceMax" in op_names:
+            op_list = fusedop.ops[:3]
+            if "Add" in op_names:
+                op_list = fusedop.ops[:4]
+            reducemax_op = FusedOpDesc(fusedop.id, op_list, fusedop.params, False, False)
+            reducemax_op.backbone_op = op_list[-1]
+            reducemax_op.lineno = fusedop.lineno
+            reducemax_op.softmax_type = SoftMax.NORM_MAX
+            if "Add" in op_names:
+                reducemax_op.softmax_type = SoftMax.MULTIDIM_MAX
+            ops.append(reducemax_op)
+            
+            params = [op_list[-2].output_desc[0], op_list[-1].output_desc[0]]
+            op_list = fusedop.ops[3:]
+            if "Add" in op_names:
+                op_list = fusedop.ops[4:]
+            reducesum_op = FusedOpDesc(fusedop.id, op_list, params, False, False)
+            reducesum_op.lineno = fusedop.lineno
+            reducesum_op.softmax_type = SoftMax.NORM_SUM
+            ops.append(reducesum_op)
+        else:
+            ops.append(fusedop)
+            
+    return ops
 
 def parse(lines):
     ops = []
@@ -232,7 +263,8 @@ def parse(lines):
     
     return FusedOpDesc(opid, ops, params, is_conv, is_split)
 
-def to_json(ops, params, filename, lineno):
+def to_json(fusedop, params, filename, lineno):
+    ops = fusedop.ops
     opname = "Fused_{}".format('_'.join([op.akg_name for op in ops]))
     params.sort(key=lambda param: param.tensor_name)
     hash_value = hash(str([[input.shape for input in op.input_desc] for op in ops])) + sys.maxsize + 1
@@ -243,7 +275,7 @@ def to_json(ops, params, filename, lineno):
     visited = hash_value in op_hashset[opname]
     succeed = True
     op_hashset[opname].add(hash_value)
-    
+
     json_obj = {
         "composite": True,
         "composite_graph": "68.283",
@@ -257,6 +289,17 @@ def to_json(ops, params, filename, lineno):
         "filename": filename,
         "lineno": lineno
     }
+    if hasattr(fusedop, "softmax_type") and fusedop.softmax_type.value < SoftMax.NORM_SUM.value:
+        json_obj["output_desc"] = [o.to_dict() for o in ops[-1].input_desc] + [o.to_dict() for o in ops[-1].output_desc]
+    
+    if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
+        json_obj["pragma_enable_micro_kernel_code"] = True
+    
+    if hasattr(fusedop, "softmax_type"):
+        if fusedop.softmax_type == SoftMax.MULTIDIM_MAX:
+            json_obj["multi_dim_reducemax"] = True
+        elif fusedop.softmax_type == SoftMax.NORM_SUM:
+            json_obj["enable_reduce_epilogue_fusion"] = True
     
     if opname in ["Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_Split", "Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_LayoutTransform"]:
         succeed = False
@@ -348,7 +391,7 @@ for filename in os.listdir(dirpath):
         global_ops = refactor_reduce_op(global_ops)
         
         for fusedop in global_ops:
-            json_obj, need_dump = to_json(fusedop.ops, fusedop.params, filename, fusedop.lineno)
+            json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)
         
             if need_dump:
                 json_name = os.path.join(infopath, json_obj['op'] + '.json')
