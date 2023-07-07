@@ -3,6 +3,8 @@ import copy
 from op import *
 from tensor import *
 
+gen_for_micro_kernel = True
+
 def unpad(pad_ops, old_shape, new_shape):
     
     backbone_op = pad_ops[1] if pad_ops[1].akg_name in ["Conv2D", "MatMul", "BatchMatMul"] else pad_ops[0]
@@ -71,7 +73,8 @@ def propagate_conv_pad(fusedop, op_dict):
         for op in fusedop.ops[1:]:
             ops += op.get_pad()
             
-        if all([op_dict[desc].is_conv and op_dict[desc].backbone_op.conv_type == ConvType.NORM for desc in fusedop.desc]) and tensor_b.shape[0] % 8 == 0:
+        if all([op_dict[desc].is_conv and op_dict[desc].backbone_op.conv_type == ConvType.NORM for desc in fusedop.desc]) \
+            and tensor_b.shape[0] % 8 == 0 and gen_for_micro_kernel != True:
             for desc in fusedop.desc:
                 if op_dict[desc].inputs[0] == fusedop.output:
                     propagate_conv_pad(op_dict[desc], op_dict)
@@ -216,7 +219,8 @@ def pad(fusedops, op_dict):
                     ops += op.get_pad()
                 # following is all conv and this conv's output channel(which is also following conv's input channel) is multiplies of 8
                 # and there do not exist padding on image, then we propagate the padding
-                if all([op_dict[desc].is_conv and op_dict[desc].backbone_op.conv_type == ConvType.NORM for desc in fusedop.desc]):
+                if all([op_dict[desc].is_conv and gen_for_micro_kernel != True \
+                        and op_dict[desc].backbone_op.conv_type == ConvType.NORM for desc in fusedop.desc]):
                     print("we're progagating padding")
                     for desc in fusedop.desc:
                         if op_dict[desc].inputs[0] == fusedop.output:
@@ -233,7 +237,8 @@ def pad(fusedops, op_dict):
             tensor_b = backbone_op.input_desc[1]
             if tensor_a.shape[-1] % 32 != 0:
                 assert(tensor_a.shape[-1] == tensor_b.shape[-1])
-                assert(any(backbone_op.pad) != True)
+                if gen_for_micro_kernel != True:
+                    assert(any(backbone_op.pad) != True)
                 backbone_idx = fusedop.ops.index(backbone_op)
                 ops = fusedop.ops[:backbone_idx] + backbone_op.get_pad(pad_k = True) + fusedop.ops[backbone_idx+1:]
                 fusedop.ops = ops

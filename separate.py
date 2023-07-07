@@ -157,6 +157,64 @@ def refactor_reduce_op(fusedops):
             
     return ops
 
+def flatten_epilogue(fusedops):
+    for fusedop in fusedops:
+        if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
+            for op in fusedop.ops:
+                if op.akg_name not in ["Conv2D", "MatMul", "BatchMatMul"] and (len(op.input_desc) == 2 or op.akg_name == "PadAkg"):
+                    for input_tensor in op.input_desc:
+                        if input_tensor.tensor_name.find("input") == 0 and len(input_tensor.shape) > 1 and input_tensor.shape[0] == 1:
+                            input_tensor.shape = [input_tensor.shape[-1]]
+                            if op.akg_name == "PadAkg":
+                                op.output_desc[0].shape = [op.output_desc[0].shape[-1]]
+                                op.pad_head = [op.pad_head[-1]]
+                                op.pad_tail = [op.pad_tail[-1]]
+    return fusedops
+
+# for double pad on image tensor
+def fuse_pad_ops(fusedops):
+    for fusedop in fusedops:
+        if fusedop.backbone_op.akg_name == "Conv2D":
+            backbone_op = fusedop.backbone_op
+            for op in fusedop.ops:
+                if op.akg_name == "PadAkg" and op.input_desc[0].tensor_name == "input_0" and any(fusedop.backbone_op.pad):
+                    op.pad_head = [op.pad_head[0], backbone_op.pad[0], backbone_op.pad[1], op.pad_head[3]]
+                    op.pad_tail = [op.pad_tail[0], backbone_op.pad[2], backbone_op.pad[3], op.pad_tail[3]]
+                    op.output_desc[0].shape[1] += (backbone_op.pad[0] + backbone_op.pad[2])
+                    op.output_desc[0].shape[2] += (backbone_op.pad[1] + backbone_op.pad[3])
+                    backbone_op.pad = [0, 0, 0, 0]
+    return fusedops
+
+def split_subgraph(fusedops):
+    if gen_for_micro_kernel:
+        ops = []
+        for fusedop in fusedops:
+            backbone_op = fusedop.backbone_op
+            if backbone_op.akg_name in ["BatchMatMul", "MatMul"]:
+                op_names = "_".join([op.akg_name for op in fusedop.ops])
+                if "Transpose" in op_names or "Split" in op_names:
+                    split_idx = 0
+                    for i, op in enumerate(fusedop.ops):
+                        if op.akg_name in ["Reshape", "Transpose", "Split"]:
+                            split_idx = i
+                            break
+                    op_list = fusedop.ops[:split_idx]
+                    backbone_op = FusedOpDesc(fusedop.id, op_list, fusedop.params, False, False)
+                    backbone_op.lineno = fusedop.lineno
+                    ops.append(backbone_op)
+                    
+                    params = [op_list[-1].output_desc[0]]
+                    op_list = fusedop.ops[split_idx:]
+                    epilogue_op = FusedOpDesc(fusedop.id, op_list, params, False, False)
+                    epilogue_op.lineno = fusedop.lineno
+                    ops.append(epilogue_op)
+                else:
+                    ops.append(fusedop)
+            else:
+                ops.append(fusedop)
+        return ops
+    return fusedops
+
 def parse(lines):
     ops = []
     params = []
@@ -322,7 +380,7 @@ infopath = os.path.join(os.getcwd(), 'trains')
 
 
 testset = ["resnet_log", "mobilenetv2_log", "bert_large_log", "vit_log"]
-trainset = ["googlenet_log", "densenet_log" "resnext_log", "alexnet_log", "inception_log", "mnasnet_log", "mobilenet_log", "squeezenet_log", "mobilenetv3_log", "nasnet_log", "shufflenet_log", "wide_resnet_log", "yolov5_log", "bert_tiny_log", "bert_base_log"]
+trainset = ["googlenet_log", "densenet_log", "resnext_log", "alexnet_log", "inception_log", "mnasnet_log", "mobilenet_log", "squeezenet_log", "mobilenetv3_log", "nasnet_log", "shufflenet_log", "wide_resnet_log", "yolov5_log", "bert_tiny_log", "bert_base_log"]
 
 def process(filename):
     print(filename)
@@ -393,9 +451,12 @@ def process(filename):
         global_ops = conv2matmul(global_ops)
         global_ops = eliminate_redundant_pad(global_ops)
         global_ops = refactor_reduce_op(global_ops)
+        global_ops = flatten_epilogue(global_ops)
+        global_ops = fuse_pad_ops(global_ops)
+        global_ops = split_subgraph(global_ops)
         
         for fusedop in global_ops:
-            json_obj, need_dump = to_json(fusedop.ops, fusedop.params, filename, fusedop.lineno)
+            json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)
         
             if need_dump:
                 json_name = os.path.join(infopath, json_obj['op'] + '.json')

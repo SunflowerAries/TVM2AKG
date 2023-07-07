@@ -225,8 +225,12 @@ class OpDesc:
             pad.pad_tail = copy.deepcopy(pad.pad_head)
             pad.pad_tail[-1] = new_shape - old_shape
             pad.pad_value = 0
-            self.input_desc[0].shape[-1] = new_shape
-            self.input_desc[1] = pad_tensor
+            if self.input_desc[0] == unpad_tensor:
+                self.input_desc[0] = pad_tensor
+                assert(self.input_desc[1].shape[-1] == new_shape)
+            else:
+                self.input_desc[1] = pad_tensor
+                assert(self.input_desc[0].shape[-1] == new_shape)
             self.output_desc[0].shape[-1] = new_shape
             
             return [pad, self]
