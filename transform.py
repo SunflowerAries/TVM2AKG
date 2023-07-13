@@ -324,6 +324,18 @@ def parse(lines):
 def to_json(fusedop, params, filename, lineno):
     ops = fusedop.ops
     opname = "Fused_{}".format('_'.join([op.akg_name for op in ops]))
+    if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
+        opnames = []
+        for op in ops:
+            if op != fusedop.backbone_op:
+                if len(op.input_desc) == 2 and len(op.input_desc[0].shape) == len(op.input_desc[1].shape):
+                    assert(op.akg_name in ["Add", "Mul"])
+                    opnames.append("Residual" + op.akg_name)
+                else:
+                    opnames.append(op.akg_name)
+            else:
+                opnames.append(op.akg_name)
+        opname = "Fused_{}".format('_'.join(opnames))
     params.sort(key=lambda param: param.tensor_name)
     hash_value = hash(str([[input.shape for input in op.input_desc] for op in ops])) + sys.maxsize + 1
     
