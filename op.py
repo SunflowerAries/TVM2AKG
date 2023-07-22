@@ -481,7 +481,7 @@ class OpDesc:
     @property
     def attr(self):
         if self.akg_name == "Add" or self.akg_name == "Sub" or self.akg_name == "Mul" or self.akg_name == "Div" or \
-            self.akg_name == "Relu" or self.akg_name == "Erf" or self.akg_name == "BroadcastTo" or self.akg_name == "Rsqrt" or \
+            self.akg_name == "Relu" or self.akg_name == "Erf" or self.akg_name == "Rsqrt" or \
             self.akg_name == "Neg" or self.akg_name == "Exp" or self.akg_name == "Pow":
             return None
         
@@ -807,7 +807,7 @@ class OpDesc:
                 }
             ]
             
-        elif self.akg_name == "Reshape":
+        elif self.akg_name == "Reshape" or self.akg_name == "BroadcastTo":
             return [
                 {
                     "data_type": "listInt",

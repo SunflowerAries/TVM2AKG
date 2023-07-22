@@ -182,6 +182,50 @@ def fuse_pad_ops(fusedops):
                     backbone_op.pad = [0, 0, 0, 0]
     return fusedops
 
+# broadcast some tensor, e.g., predicate tensor in select
+def broadcast_select_ops(fusedops):
+    for fusedop in fusedops:
+        op_names = "_".join([op.akg_name for op in fusedop.ops])
+        op_list = []
+        if "Select" in op_names:
+            select_idx = op_names.split("_").index("Select")
+            op_list += fusedop.ops[:select_idx]
+            select_op = fusedop.ops[select_idx]
+            
+            predicte_tensor = select_op.input_desc[0]
+            predicte_tensor.data_type = "int8"
+            shapes = copy.deepcopy(select_op.input_desc[1].shape)
+            broadcast_predicte_tensor = TensorDesc("broadcast_" + predicte_tensor.tensor_name, predicte_tensor.data_type, shapes, predicte_tensor.format)
+            broadcast_predicate_op = OpDesc(None, [predicte_tensor], [broadcast_predicte_tensor])
+            broadcast_predicate_op.shape = shapes
+            broadcast_predicate_op.akg_name = "BroadcastTo"
+            
+            altern_tensor = select_op.input_desc[2]
+            shapes = copy.deepcopy(select_op.input_desc[1].shape)
+            shapes[0] = shapes[1] = 1
+            broadcast_altern_tensor = TensorDesc("broadcast_" + altern_tensor.tensor_name, altern_tensor.data_type, shapes, altern_tensor.format)
+            broadcast_altern_op = OpDesc(None, [altern_tensor], [broadcast_altern_tensor])
+            broadcast_altern_op.shape = shapes
+            broadcast_altern_op.akg_name = "BroadcastTo"
+            
+            select_op.input_desc = [broadcast_predicte_tensor, select_op.input_desc[1], broadcast_altern_tensor]
+            
+            op_list.append(broadcast_predicate_op)
+            op_list.append(broadcast_altern_op)
+            op_list.append(select_op)
+            fusedop.ops = op_list
+            
+        if fusedop.backbone_op.akg_name == "Conv2D":
+            backbone_op = fusedop.backbone_op
+            for op in fusedop.ops:
+                if op.akg_name == "PadAkg" and op.input_desc[0].tensor_name == "input_0" and any(fusedop.backbone_op.pad):
+                    op.pad_head = [op.pad_head[0], backbone_op.pad[0], backbone_op.pad[1], op.pad_head[3]]
+                    op.pad_tail = [op.pad_tail[0], backbone_op.pad[2], backbone_op.pad[3], op.pad_tail[3]]
+                    op.output_desc[0].shape[1] += (backbone_op.pad[0] + backbone_op.pad[2])
+                    op.output_desc[0].shape[2] += (backbone_op.pad[1] + backbone_op.pad[3])
+                    backbone_op.pad = [0, 0, 0, 0]
+    return fusedops
+
 def parse(lines):
     ops = []
     params = []
@@ -432,6 +476,7 @@ for filename in os.listdir(dirpath):
         global_ops = refactor_reduce_op(global_ops)
         global_ops = flatten_epilogue(global_ops)
         global_ops = fuse_pad_ops(global_ops)
+        global_ops = broadcast_select_ops(global_ops)
         
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)
