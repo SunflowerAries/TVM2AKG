@@ -33,7 +33,7 @@ def simplify(fused_op):
                 params.append(op.output_desc[0])
                 fused_op.params = params
     fused_op.ops = ops
-    if fused_op.backbone_op != None and fused_op.backbone_op.akg_name == "Conv2D" and len(fused_op.ops) > 1 and fused_op.ops[0].akg_name != "Conv2D":
+    if fused_op.backbone_op != None and len(fused_op.ops) >= 1:
         fused_op.backbone_op = fused_op.ops[0]
     return fused_op
 
@@ -133,9 +133,8 @@ def refactor_reduce_op(fusedops):
                 fusedop.ops[-1] = reduce_op
             ops.append(fusedop)
         elif "ReduceMax" in op_names:
-            op_list = fusedop.ops[:3]
-            if "Add" in op_names:
-                op_list = fusedop.ops[:4]
+            reducemax_idx = fusedop.ops.index(fusedop.backbone_op)
+            op_list = fusedop.ops[:reducemax_idx+1]
             reducemax_op = FusedOpDesc(fusedop.id, op_list, fusedop.params, False, False)
             reducemax_op.backbone_op = op_list[-1]
             reducemax_op.lineno = fusedop.lineno
@@ -144,10 +143,8 @@ def refactor_reduce_op(fusedops):
                 reducemax_op.softmax_type = SoftMax.MULTIDIM_MAX
             ops.append(reducemax_op)
             
-            params = [op_list[-2].output_desc[0], op_list[-1].output_desc[0]]
-            op_list = fusedop.ops[3:]
-            if "Add" in op_names:
-                op_list = fusedop.ops[4:]
+            params = [op_list[-1].input_desc[0], op_list[-1].output_desc[0]]
+            op_list = fusedop.ops[reducemax_idx+1:]
             reducesum_op = FusedOpDesc(fusedop.id, op_list, params, False, False)
             reducesum_op.lineno = fusedop.lineno
             reducesum_op.softmax_type = SoftMax.NORM_SUM
@@ -185,36 +182,6 @@ def fuse_pad_ops(fusedops):
                     backbone_op.pad = [0, 0, 0, 0]
     return fusedops
 
-def split_subgraph(fusedops):
-    if gen_for_micro_kernel:
-        ops = []
-        for fusedop in fusedops:
-            backbone_op = fusedop.backbone_op
-            if backbone_op.akg_name in ["BatchMatMul", "MatMul"]:
-                op_names = "_".join([op.akg_name for op in fusedop.ops])
-                if "Transpose" in op_names or "Split" in op_names:
-                    split_idx = 0
-                    for i, op in enumerate(fusedop.ops):
-                        if op.akg_name in ["Reshape", "Transpose", "Split"]:
-                            split_idx = i
-                            break
-                    op_list = fusedop.ops[:split_idx]
-                    backbone_op = FusedOpDesc(fusedop.id, op_list, fusedop.params, False, False)
-                    backbone_op.lineno = fusedop.lineno
-                    ops.append(backbone_op)
-                    
-                    params = [op_list[-1].output_desc[0]]
-                    op_list = fusedop.ops[split_idx:]
-                    epilogue_op = FusedOpDesc(fusedop.id, op_list, params, False, False)
-                    epilogue_op.lineno = fusedop.lineno
-                    ops.append(epilogue_op)
-                else:
-                    ops.append(fusedop)
-            else:
-                ops.append(fusedop)
-        return ops
-    return fusedops
-
 def parse(lines):
     ops = []
     params = []
@@ -223,7 +190,7 @@ def parse(lines):
     input_cnt = 0
     opid = re.findall(r'(%\d+) = fn', lines[0])[0]
 
-    tensor_descs = re.findall(r'(%p\d+): Tensor\[(.*?), (float\d+|int\d+)\]', lines[0])
+    tensor_descs = re.findall(r'(%p\d+): Tensor\[(.*?), (float\d+|int\d+|bool)\]', lines[0])
     scalar_descs = re.findall(r'(%p\d+): (float\d+|int\d+)', lines[0])
     
     is_conv = "nn.conv2d" in lines[1]
@@ -243,7 +210,7 @@ def parse(lines):
     
     for _, line in enumerate(lines[1:-1]):
 
-        tensor_pattern = re.compile(r'%p\d+|%\d+|\d+\.?\d?f|\d+\.?\d?h|\d+e-?\d+f')
+        tensor_pattern = re.compile(r'%p\d+|%\d+|[-+]?(?:\d*\.*\d+)f|[-+]?(?:\d*\.*\d+)h|\d+e-?\d+f')
         tensor_matches = tensor_pattern.findall(line)
         split_tensor_pattern = re.compile(r'%p\d+\.\d')
         split_tensor_matches = split_tensor_pattern.findall(line)
@@ -281,7 +248,7 @@ def parse(lines):
         inputs = [tensors[tensor] for tensor in filter(lambda tensor : tensor in tensors, tensor_matches)]
         
         for tensor in tensor_matches:
-            scalar_pattern = re.compile(r'\d+\.?\d?f|\d+\.?\d?h|\d+e-?\d+f')
+            scalar_pattern = re.compile(r'[-+]?(?:\d*\.*\d+)f|[-+]?(?:\d*\.*\d+)h|\d+e-?\d+f')
             scalar_matches = scalar_pattern.findall(tensor)
             if len(scalar_matches) > 0:
                 data_type = "float32" if scalar_matches[0][-1] == 'f' else "float16"
@@ -359,7 +326,7 @@ def to_json(fusedop, params, filename, lineno):
         "filename": filename,
         "lineno": lineno
     }
-    if hasattr(fusedop, "softmax_type") and fusedop.softmax_type.value < SoftMax.NORM_SUM.value:
+    if hasattr(fusedop, "softmax_type") and len(fusedop.ops) > 1 and fusedop.softmax_type.value < SoftMax.NORM_SUM.value:
         json_obj["output_desc"] = [o.to_dict() for o in ops[-1].input_desc] + [o.to_dict() for o in ops[-1].output_desc]
     
     if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
@@ -387,7 +354,7 @@ def to_json(fusedop, params, filename, lineno):
                     print(json.dumps(json_obj, indent=4))
     return json_obj, visited != True and succeed
 
-dirpath = os.path.join(os.getcwd(), 'workloads')
+dirpath = os.path.join(os.getcwd(), 'micro_workloads')
 infopath = os.path.join(os.getcwd(), 'infos')
 
 for filename in os.listdir(dirpath):
@@ -451,6 +418,10 @@ for filename in os.listdir(dirpath):
         
         # list of fusedops(id, inputs, output, desc, ops), map(id: fuesd_op)
         global_ops = eliminate_zero_ops_and_pad_prop(global_ops, op_dict, graphtensors)
+        if "bert" in filename:
+            global_ops = fuse_matmul_for_bert(global_ops, op_dict, graphtensors)
+        elif "gpt" in filename:
+            global_ops = fuse_matmul_for_gpt(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = resimplify(global_ops)
         global_ops = epilogue_fuse(global_ops, op_dict)
@@ -461,7 +432,6 @@ for filename in os.listdir(dirpath):
         global_ops = refactor_reduce_op(global_ops)
         global_ops = flatten_epilogue(global_ops)
         global_ops = fuse_pad_ops(global_ops)
-        global_ops = split_subgraph(global_ops)
         
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)

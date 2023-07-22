@@ -185,36 +185,6 @@ def fuse_pad_ops(fusedops):
                     backbone_op.pad = [0, 0, 0, 0]
     return fusedops
 
-def split_subgraph(fusedops):
-    if gen_for_micro_kernel:
-        ops = []
-        for fusedop in fusedops:
-            backbone_op = fusedop.backbone_op
-            if backbone_op.akg_name in ["BatchMatMul", "MatMul"]:
-                op_names = "_".join([op.akg_name for op in fusedop.ops])
-                if "Transpose" in op_names or "Split" in op_names:
-                    split_idx = 0
-                    for i, op in enumerate(fusedop.ops):
-                        if op.akg_name in ["Reshape", "Transpose", "Split"]:
-                            split_idx = i
-                            break
-                    op_list = fusedop.ops[:split_idx]
-                    backbone_op = FusedOpDesc(fusedop.id, op_list, fusedop.params, False, False)
-                    backbone_op.lineno = fusedop.lineno
-                    ops.append(backbone_op)
-                    
-                    params = [op_list[-1].output_desc[0]]
-                    op_list = fusedop.ops[split_idx:]
-                    epilogue_op = FusedOpDesc(fusedop.id, op_list, params, False, False)
-                    epilogue_op.lineno = fusedop.lineno
-                    ops.append(epilogue_op)
-                else:
-                    ops.append(fusedop)
-            else:
-                ops.append(fusedop)
-        return ops
-    return fusedops
-
 def parse(lines):
     ops = []
     params = []
@@ -223,7 +193,7 @@ def parse(lines):
     input_cnt = 0
     opid = re.findall(r'(%\d+) = fn', lines[0])[0]
 
-    tensor_descs = re.findall(r'(%p\d+): Tensor\[(.*?), (float\d+|int\d+)\]', lines[0])
+    tensor_descs = re.findall(r'(%p\d+): Tensor\[(.*?), (float\d+|int\d+|bool)\]', lines[0])
     scalar_descs = re.findall(r'(%p\d+): (float\d+|int\d+)', lines[0])
     
     is_conv = "nn.conv2d" in lines[1]
@@ -455,6 +425,8 @@ def process(filename):
         
         # list of fusedops(id, inputs, output, desc, ops), map(id: fuesd_op)
         global_ops = eliminate_zero_ops_and_pad_prop(global_ops, op_dict, graphtensors)
+        if "bert" in filename:
+            global_ops = fuse_matmul_for_bert(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = resimplify(global_ops)
         global_ops = epilogue_fuse(global_ops, op_dict)
@@ -465,7 +437,6 @@ def process(filename):
         global_ops = refactor_reduce_op(global_ops)
         global_ops = flatten_epilogue(global_ops)
         global_ops = fuse_pad_ops(global_ops)
-        global_ops = split_subgraph(global_ops)
         
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)

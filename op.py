@@ -32,6 +32,8 @@ onnx2akg = {
     "cast": "Cast",
     "reshape": "Reshape",
     "erf": "Erf",
+    "power": "Pow",
+    "where": "Select",
     "fast_erf": "Erf",
     "fast_tanh": "Tanh",
     "nn.fast_softmax": "Softmax",
@@ -480,7 +482,7 @@ class OpDesc:
     def attr(self):
         if self.akg_name == "Add" or self.akg_name == "Sub" or self.akg_name == "Mul" or self.akg_name == "Div" or \
             self.akg_name == "Relu" or self.akg_name == "Erf" or self.akg_name == "BroadcastTo" or self.akg_name == "Rsqrt" or \
-            self.akg_name == "Neg" or self.akg_name == "Exp":
+            self.akg_name == "Neg" or self.akg_name == "Exp" or self.akg_name == "Pow":
             return None
         
         elif self.akg_name == "Transpose":
