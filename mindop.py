@@ -1,13 +1,14 @@
 import copy
 
 class Statement:
-    def __init__(self, cnt, axes, kind, has_pad=False, has_unpad=False, has_transpose=False):
+    def __init__(self, cnt, axes, kind, has_pad=False, has_unpad=False, has_transpose=False, is_special=False):
         self.cnt = cnt
         self.axes = axes
         self.kind = kind
         self.has_pad = has_pad
         self.has_unpad = has_unpad
         self.has_transpose = has_transpose
+        self.is_special = is_special
         
     def to_dict(self):
         return {
@@ -88,6 +89,8 @@ class Statement:
             if self.has_pad:
                 tmp = [0] * (len(self.axes) + 1)
                 tmp[-1] = 1
+                if self.is_special:
+                    tmp[-1] = 0
                 coeffs.append(str(tmp))
             for i in range(len(self.axes)):
                 tmp = [0] * (len(self.axes) + 1)
@@ -205,6 +208,18 @@ class MindOpDesc:
                     break
                 elif op["name"] == "Transpose":
                     break
+            
+            if "Fused_BatchMatMul_Add_Split_Reshape_Reshape_Reshape_Transpose_Transpose_Transpose" in json_obj["op"]:
+                split_op = next(filter(lambda op : op["name"] == "Split", json_obj["op_desc"]))
+                transpose_op = next(filter(lambda op : op["name"] == "Transpose", json_obj["op_desc"]))
+                transpose_shape = transpose_op["output_desc"][0]["shape"]
+                for output_tensor in split_op["output_desc"]:
+                    self.statements.append(Statement(cnt, output_tensor["shape"], "Split", True, is_special=True))
+                    cnt += 1
+                    self.statements.append(Statement(cnt, transpose_shape, "Transpose"))
+                    cnt += 1
+                return
+            
             for op in json_obj["op_desc"]:
                 if op["name"] == "Transpose":
                     output_tensor = op["output_desc"][0]["shape"]

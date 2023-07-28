@@ -408,42 +408,67 @@ def fuse_matmul_for_gpt(fusedops, op_dict, graphtensors):
                   # reshape->transpose
                 epilogue_op_names = "_".join([op.akg_name for op in epilogue_op.ops])
                 if epilogue_op_names == "Reshape_Split":
+                    # reconstructure to batchmatmul+add+split+(reshape+transpose)*3
                     epilogue_op.is_skip = True
                     op_dict.pop(epilogue_op.id)
-                    op_list = fusedop.ops
+                    op_list = []
                     
-                    reshape_op = epilogue_op.ops[0]
-                    reshape_op.input_desc = op_list[-1].output_desc
-                    reshape_res_tensor = reshape_op.output_desc[0]
-                    temp_shape = reshape_res_tensor.shape
-                    reshape_res_tensor.shape = [temp_shape[0], temp_shape[1], temp_shape[2] // 64, 64]
-                    reshape_op.shape = reshape_res_tensor.shape
-                    reshape_res_tensor.tensor_name = "output_0_2"
-                    reshape_shapes = reshape_res_tensor.shape
+                    prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
+                    batch_size, seq_len, _ = prelogue_op.params[0].shape
+                    hidden_size = fusedop.params[0].shape[-1]
                     
-                    tranpose_shapes = [reshape_shapes[0], reshape_shapes[2], reshape_shapes[1], reshape_shapes[3]]
-                    transpose_res_tensor = TensorDesc("output_0_3", reshape_res_tensor.data_type, tranpose_shapes, reshape_res_tensor.format)
-                    transpose_op = OpDesc(None, [reshape_res_tensor], [transpose_res_tensor])
-                    transpose_op.axes = [0, 2, 1, 3]
-                    transpose_op.akg_name = "Transpose"
+                    a_tensor = TensorDesc("input_0", "float16", [batch_size, seq_len, hidden_size])
+                    b_tensor = TensorDesc("input_1", "float16", [batch_size, hidden_size, 3 * hidden_size])
+                    c_tensor = TensorDesc("output_0_0", "float16", [batch_size, seq_len, 3 * hidden_size])
+                    batchmatmul_op = OpDesc(None, [a_tensor, b_tensor], [c_tensor])
+                    batchmatmul_op.akg_name = "BatchMatMul"
                     
-                    split_op = OpDesc(None, [transpose_res_tensor], [])
-                    split_op.axis = 1
+                    bias_add_tensor = TensorDesc("input_2", "float16", [3 * hidden_size])
+                    add_tensor = TensorDesc("output_0_1", "float16", [batch_size, seq_len, 3 * hidden_size])
+                    add_op = OpDesc(None, [c_tensor, bias_add_tensor], [add_tensor])
+                    add_op.akg_name = "Add"
+                                        
+                    split_op = OpDesc(None, [add_tensor], [])
+                    split_op.axis = 2
+                    reshape_op_list = []
+                    transpose_op_list = []
+                    
                     for i in range(3):
-                        shapes = copy.deepcopy(transpose_res_tensor.shape)
-                        shapes[1] = shapes[1] // 3
-                        split_op.output_desc.append(TensorDesc(f"output_0_{4+i}", transpose_res_tensor.data_type, shapes, transpose_res_tensor.format))
+                        shapes = copy.deepcopy(add_tensor.shape)
+                        shapes[2] = shapes[2] // 3
+                        output_tensor = TensorDesc(f"output_0_{2+i}", add_tensor.data_type, shapes)
+                        split_op.output_desc.append(output_tensor)
+                        temp_shape = output_tensor.shape
+                        
+                        reshape_res_tensor = TensorDesc(f"output_0_{5+i}", output_tensor.data_type, [])
+                        reshape_res_tensor.shape = [temp_shape[0], temp_shape[1], temp_shape[2] // 64, 64]
+                        reshape_op = OpDesc(None, [output_tensor], [reshape_res_tensor])
+                        reshape_op.akg_name = "Reshape"
+                        reshape_op.shape = reshape_res_tensor.shape
+                        reshape_op_list.append(reshape_op)
+                        
+                        tranpose_shapes = [temp_shape[0], temp_shape[2] // 64, temp_shape[1], 64]
+                        transpose_res_tensor = TensorDesc(f"output_0_{8+i}", reshape_res_tensor.data_type, tranpose_shapes)
+                        transpose_op = OpDesc(None, [reshape_res_tensor], [transpose_res_tensor])
+                        transpose_op.axes = [0, 2, 1, 3]
+                        transpose_op.akg_name = "Transpose"
+                        transpose_op_list.append(transpose_op)
+                        
                     split_op.akg_name = "Split"
                     
-                    op_list.append(reshape_op)
-                    op_list.append(transpose_op)
+                    op_list.append(batchmatmul_op)
+                    op_list.append(add_op)
                     op_list.append(split_op)
+                    op_list += reshape_op_list
+                    op_list += transpose_op_list
                     
                     fused_matmul_op = FusedOpDesc(fusedop.id, op_list, fusedop.params, False, False)
                     fused_matmul_op.inputs = fusedop.inputs
                     fused_matmul_op.output = fusedop.output
                     fused_matmul_op.lineno = fusedop.lineno
+                    fused_matmul_op.backbone_op = batchmatmul_op
                     fused_matmul_op.desc = []
+                    fused_matmul_op.params = batchmatmul_op.input_desc + [add_op.input_desc[1]]
                     
                     for desc in epilogue_op.desc:
                         reshape_transpose_op_names = "_".join([op.akg_name for op in op_dict[desc].ops])
@@ -492,34 +517,40 @@ def fuse_matmul_for_bert(fusedops, op_dict, graphtensors):
                         add_op = OpDesc(None, [add_a_tensor, add_b_tensor], [add_res_tensor])
                         add_op.akg_name = "Add"
                         
-                        reshape_shapes = copy.deepcopy(add_res_tensor.shape)
-                        reshape_shapes = [reshape_shapes[0], reshape_shapes[1], reshape_shapes[2] // 64, 64]
-                        reshape_res_tensor = TensorDesc("output_0_2", add_res_tensor.data_type, reshape_shapes, add_res_tensor.format)
-                        reshape_op = OpDesc(None, [add_res_tensor], [reshape_res_tensor])
-                        reshape_op.shape = reshape_res_tensor.shape
-                        reshape_op.akg_name = "Reshape"
+                        split_op = OpDesc(None, [add_res_tensor], [])
+                        split_op.axis = 2
+                        reshape_op_list = []
+                        transpose_op_list = []
                         
-                        # transpose 0 2 1 3
-                        tranpose_shapes = [reshape_shapes[0], reshape_shapes[2], reshape_shapes[1], reshape_shapes[3]]
-                        transpose_res_tensor = TensorDesc("output_0_3", add_res_tensor.data_type, tranpose_shapes, add_res_tensor.format)
-                        
-                        transpose_op = OpDesc(None, [reshape_res_tensor], [transpose_res_tensor])
-                        transpose_op.axes = [0, 2, 1, 3]
-                        transpose_op.akg_name = "Transpose"
-                        
-                        split_op = OpDesc(None, [transpose_res_tensor], [])
-                        split_op.axis = 1
                         for i in range(3):
-                            shapes = copy.deepcopy(transpose_res_tensor.shape)
-                            shapes[1] = shapes[1] // 3
-                            split_op.output_desc.append(TensorDesc(f"output_0_{4+i}", add_res_tensor.data_type, shapes, add_res_tensor.format))
+                            shapes = copy.deepcopy(add_res_tensor.shape)
+                            shapes[2] = shapes[2] // 3
+                            output_tensor = TensorDesc(f"output_0_{2+i}", add_res_tensor.data_type, shapes)
+                            split_op.output_desc.append(output_tensor)
+                            temp_shape = output_tensor.shape
+                        
+                            reshape_shapes = [temp_shape[0], temp_shape[1], temp_shape[2] // 64, 64]
+                            reshape_res_tensor = TensorDesc(f"output_0_{5+i}", output_tensor.data_type, reshape_shapes)
+                            reshape_op = OpDesc(None, [output_tensor], [reshape_res_tensor])
+                            reshape_op.akg_name = "Reshape"
+                            reshape_op.shape = reshape_res_tensor.shape
+                            reshape_op_list.append(reshape_op)
+                            
+                            # transpose 0 2 1 3
+                            tranpose_shapes = [reshape_shapes[0], reshape_shapes[2], reshape_shapes[1], reshape_shapes[3]]
+                            transpose_res_tensor = TensorDesc(f"output_0_{8+i}", reshape_res_tensor.data_type, tranpose_shapes)
+                            transpose_op = OpDesc(None, [reshape_res_tensor], [transpose_res_tensor])
+                            transpose_op.axes = [0, 2, 1, 3]
+                            transpose_op.akg_name = "Transpose"
+                            transpose_op_list.append(transpose_op)
+                            
                         split_op.akg_name = "Split"
                         
                         op_list.append(epilogue_op.backbone_op)
                         op_list.append(add_op)
-                        op_list.append(reshape_op)
-                        op_list.append(transpose_op)
                         op_list.append(split_op)
+                        op_list += reshape_op_list
+                        op_list += transpose_op_list
                         
                         params = epilogue_op.backbone_op.input_desc + [add_b_tensor]
                         fused_matmul_op = FusedOpDesc(epilogue_op.id, op_list, params, False, False)

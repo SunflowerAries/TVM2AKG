@@ -373,6 +373,9 @@ def to_json(fusedop, params, filename, lineno):
     if hasattr(fusedop, "softmax_type") and len(fusedop.ops) > 1 and fusedop.softmax_type.value < SoftMax.NORM_SUM.value:
         json_obj["output_desc"] = [o.to_dict() for o in ops[-1].input_desc] + [o.to_dict() for o in ops[-1].output_desc]
     
+    if "BatchMatMul_Add_Split_Reshape_Reshape_Reshape_Transpose_Transpose_Transpose" in opname:
+        json_obj["output_desc"] = [o.to_dict() for o in ops[-3].output_desc] + [o.to_dict() for o in ops[-2].output_desc] + [o.to_dict() for o in ops[-1].output_desc]
+    
     if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
         json_obj["pragma_enable_micro_kernel_code"] = True
     
