@@ -1,7 +1,7 @@
 class TensorDesc:
     def __init__(self, tensor_name, data_type, shape, fmt='DefaultFormat'):
         self.tensor_name = tensor_name
-        self.data_type = data_type
+        self.data_type = data_type if data_type != "int64" else "int32"
         self.shape = shape
         self.format = fmt
         self.value = None

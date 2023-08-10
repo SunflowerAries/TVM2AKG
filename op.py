@@ -27,6 +27,7 @@ onnx2akg = {
     "add": "Add",
     "clip": "Clip",
     "nn.adaptive_avg_pool2d": "Pool2D",
+    "nn.global_avg_pool2d": "Pool2D",
     "layout_transform": "LayoutTransform",
     "subtract": "Sub",
     "cast": "Cast",
@@ -36,6 +37,7 @@ onnx2akg = {
     "where": "Select",
     "fast_erf": "Erf",
     "fast_tanh": "Tanh",
+    "tanh": "Tanh",
     "nn.fast_softmax": "Softmax",
     "nn.batch_matmul": "BatchMatMul",
     "nn.pad": "PadAkg",
@@ -45,7 +47,10 @@ onnx2akg = {
     "squeeze": "Reshape",
     "nn.softmax": "Softmax",
     "variance": "Variance",
-    "sigmoid": "Sigmoid"
+    "sigmoid": "Sigmoid",
+    "less": "Less",
+    "nn.batch_flatten": "Reshape",
+    "expand_dims": "ExpandDims"
 }
 
 unparsedOps = set()
@@ -374,6 +379,9 @@ class OpDesc:
             self.axes = list(map(int, re.findall(r'axis=\[(.*?)\]', input_str)[0].split(', ')))
             self.keepdims = len(re.findall(r'keepdims=True', input_str)) != 0
         
+        elif self.name == "less":
+            self.output_desc[0].data_type = "int8"
+        
         elif self.name == "concatenate":
             self.axis =  int(re.findall(r'axis=(\d+)', input_str)[0])
             self.input_desc = self.input_desc[0].op.input_desc
@@ -394,6 +402,14 @@ class OpDesc:
             if "strides=" in input_str:
                 self.strides = list(map(int, re.findall(r'strides=\[(.*?)\]', input_str)[0].split(', ')))
             self.pad = list(map(int, re.findall(r'padding=\[(.*?)\]', input_str)[0].split(', ')))
+        
+        elif self.name == "nn.global_avg_pool2d":
+            self.pool_type = "avg"
+            self.data_layout = "NCHW"
+            self.kernel_size = self.input_desc[0].shape[-2:]
+            self.strides = [1, 1]
+            self.is_global = False
+            self.pad = [0, 0, 0, 0]
         
         elif self.name == "nn.conv2d":
             self.kernel_size = list(map(int, re.findall(r'kernel_size=\[(.*?)\]', input_str)[0].split(', ')))
@@ -424,18 +440,27 @@ class OpDesc:
             else:
                 self.akg_name = ''
         
+        elif self.name == "nn.batch_matmul":
+            self.transpose_b = re.findall(r'transpose_b=True', input_str)
+            if len(self.transpose_b) > 0:
+                self.transpose_b = True
+            else:
+                self.transpose_b = False
+        
         elif self.name == "layout_transform":
             self.src_format = re.findall(r'src_layout="(.*?)"', input_str)[0]
             self.dst_format = re.findall(r'dst_layout="(.*?)"', input_str)[0]
         
-        elif self.name == "reshape":
+        elif self.name in ["reshape", "squeeze", "nn.batch_flatten"]:
             self.shape = self.output_desc[0].shape
+        
+        elif self.name == "expand_dims":
+            self.axis = int(re.findall(r'axis=(-?\d+)', input_str)[0])
+            if self.axis == -1:
+                self.axis = len(self.input_desc[0].shape) - 1
         
         elif self.name == "take":
             self.take_axis = int(re.findall(r'axis=(-?\d+)', input_str)[0])
-        
-        elif self.name == "squeeze":
-            self.shape = self.output_desc[0].shape
                 
         elif self.name == "nn.pad":
             pad_width = [(int(pad[0]), int(pad[1])) for pad in re.findall(r'\[(-?\d), (-?\d)\]', input_str)]
@@ -491,6 +516,15 @@ class OpDesc:
                     "data_type": "listInt",
                     "name": "perm",
                     "value": self.axes
+                }
+            ]
+            
+        elif self.akg_name == "ExpandDims":
+            return [
+                {
+                    "data_type": "int",
+                    "name": "axis",
+                    "value": self.axis
                 }
             ]
         
@@ -726,7 +760,7 @@ class OpDesc:
             ]
         
         elif self.akg_name == "BatchMatMul":
-            assert(self.input_desc[0].shape[-1] == self.input_desc[1].shape[-2])
+            assert(self.input_desc[0].shape[-1] == self.input_desc[1].shape[-2] or self.transpose_b)
             return [
                 {
                     "data_type": "str",
@@ -741,7 +775,7 @@ class OpDesc:
                 {
                     "data_type": "bool",
                     "name": "transpose_b",
-                    "value": False
+                    "value": self.transpose_b
                 },
                 {
                     "data_type": "str",

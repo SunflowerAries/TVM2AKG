@@ -254,7 +254,7 @@ def parse(lines):
     
     for _, line in enumerate(lines[1:-1]):
 
-        tensor_pattern = re.compile(r'%p\d+|%\d+|[-+]?(?:\d*\.*\d+)f|[-+]?(?:\d*\.*\d+)h|\d+e-?\d+f')
+        tensor_pattern = re.compile(r'%p\d+|%\d+|[-+]?(?:\d*\.*\d+)f|[-+]?(?:\d*\.*\d+)h|\d+e-?\d+f|\d+i64')
         tensor_matches = tensor_pattern.findall(line)
         split_tensor_pattern = re.compile(r'%p\d+\.\d')
         split_tensor_matches = split_tensor_pattern.findall(line)
@@ -279,7 +279,7 @@ def parse(lines):
             output_tensor = [(list(map(int, tensor[0][1:-1].split(', '))), tensor[1]) for tensor in re.findall(r'Tensor\[(.*?), (float\d+|int\d+)\]', line)]
             output_tensor = ([tensor[0] for tensor in output_tensor], output_tensor[0][1])
         else:
-            output_tensor = re.findall(r'ty=Tensor\[(.*?), (float\d+|int\d+)\]', line)[0]
+            output_tensor = re.findall(r'ty=Tensor\[(.*?), (float\d+|int\d+|bool)\]', line)[0]
             output_tensor = (list(map(int, output_tensor[0][1:-1].split(', '))), output_tensor[1])
         output = TensorDesc(f"output_0_{cnt}", output_tensor[1], output_tensor[0], fmt)
         output.is_output = True
@@ -292,12 +292,15 @@ def parse(lines):
         inputs = [tensors[tensor] for tensor in filter(lambda tensor : tensor in tensors, tensor_matches)]
         
         for tensor in tensor_matches:
-            scalar_pattern = re.compile(r'[-+]?(?:\d*\.*\d+)f|[-+]?(?:\d*\.*\d+)h|\d+e-?\d+f')
+            scalar_pattern = re.compile(r'[-+]?(?:\d*\.*\d+)f|[-+]?(?:\d*\.*\d+)h|\d+e-?\d+f|\d+i64')
             scalar_matches = scalar_pattern.findall(tensor)
             if len(scalar_matches) > 0:
-                data_type = "float32" if scalar_matches[0][-1] == 'f' else "float16"
+                data_type = "float32" if scalar_matches[0][-1] == 'f' else "float16" if scalar_matches[0][-1] == 'h' else "int32"
                 scalar = TensorDesc(f"input_{input_cnt}", data_type, [1], fmt)
-                scalar.value = float(scalar_matches[0][:-1])
+                if scalar_matches[0][-3:] in ["i32", "i64"]:
+                    scalar.value = float(scalar_matches[0][:-3])
+                else:
+                    scalar.value = float(scalar_matches[0][:-1])
                 input_cnt += 1
                 inputs.append(scalar)
         
@@ -385,6 +388,9 @@ def to_json(fusedop, params, filename, lineno):
         elif fusedop.softmax_type == SoftMax.NORM_SUM:
             json_obj["enable_reduce_epilogue_fusion"] = True
     
+    if "ReduceSum" in opname and opname[-9:] != "ReduceSum":
+        json_obj["enable_reduce_epilogue_fusion"] = True
+    
     if opname in ["Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_Split", "Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_LayoutTransform"]:
         succeed = False
         print(simple_colors.red("unsupported op"))
@@ -414,11 +420,10 @@ for filename in os.listdir(dirpath):
         lineno = 0
         lines = file.readlines()
                 
-        while True:
+        while "def @main" not in lines[lineno]:
             lineno += 1
-            if "def @main" in lines[lineno]:
-                lineno += 1
-                break
+        
+        lineno += 1
         
         while lineno < len(lines):
             wz = 0
@@ -465,7 +470,9 @@ for filename in os.listdir(dirpath):
         
         # list of fusedops(id, inputs, output, desc, ops), map(id: fuesd_op)
         global_ops = eliminate_zero_ops_and_pad_prop(global_ops, op_dict, graphtensors)
-        if "bert" in filename:
+        if "albert" in filename:
+            global_ops = fuse_matmul_for_albert(global_ops, op_dict, graphtensors)
+        elif "bert" in filename:
             global_ops = fuse_matmul_for_bert(global_ops, op_dict, graphtensors)
         elif "gpt" in filename:
             global_ops = fuse_matmul_for_gpt(global_ops, op_dict, graphtensors)
@@ -474,12 +481,14 @@ for filename in os.listdir(dirpath):
         global_ops = epilogue_fuse(global_ops, op_dict)
         
         global_ops = pad(global_ops, op_dict)
-        global_ops = conv2matmul(global_ops)
+        # global_ops = conv2matmul(global_ops)
         global_ops = eliminate_redundant_pad(global_ops)
         global_ops = refactor_reduce_op(global_ops)
         global_ops = flatten_epilogue(global_ops)
         global_ops = fuse_pad_ops(global_ops)
-        global_ops = broadcast_select_ops(global_ops)
+        if "gpt" in filename:
+            global_ops = broadcast_select_ops(global_ops)
+        print("unsupported ops: ", unparsedOps)
         
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)
