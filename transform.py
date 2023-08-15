@@ -3,6 +3,7 @@ from enum import Enum
 from op import *
 from tensor import *
 from graph import *
+from tvm import te
 
 op_hashset = {}
 
@@ -44,6 +45,9 @@ def resimplify(fusedops):
         op_names = "_".join([op.akg_name for op in fusedop.ops])
         if len(fusedop.ops) == 0:
             fusedop.is_skip = True
+            prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
+            assert(len(fusedop.desc) == 1)
+            prelogue_op.desc[prelogue_op.desc.index(fusedop.id)] = fusedop.desc[0]
         elif fusedop.ops[0].akg_name == "Cast":
             if len(fusedop.ops) > 1:
                 if fusedop.ops[1].akg_name == "Cast":
@@ -52,6 +56,7 @@ def resimplify(fusedops):
                     cast_op = fusedop.ops[0]
                     fusedop.ops = fusedop.ops[1:]
                     fusedop.ops[0].input_desc[1].tensor_name = cast_op.input_desc[0].tensor_name
+                    fusedop.ops[0].input_desc[1].sym_shape = cast_op.input_desc[0].sym_shape
                     fusedop.params.remove(cast_op.input_desc[0])
                     fusedop.params.append(fusedop.ops[0].input_desc[1])
         elif op_names == "LayoutTransform_Reshape_Transpose_Concat_Add":
@@ -127,6 +132,7 @@ def refactor_reduce_op(fusedops):
                 mul_op_tensor_name = mul_op.output_desc[0].tensor_name
                 mul_op.output_desc[0].tensor_name = reduce_op.output_desc[0].tensor_name
                 mul_op.output_desc[0].shape = mul_op.input_desc[0].shape
+                mul_op.output_desc[0].sym_shape = copy.deepcopy(mul_op.input_desc[0].sym_shape)
                 reduce_op.input_desc[0] = mul_op.output_desc[0]
                 reduce_op.output_desc[0].tensor_name = mul_op_tensor_name
                 fusedop.ops[-2] = mul_op
@@ -183,7 +189,7 @@ def fuse_pad_ops(fusedops):
     return fusedops
 
 # broadcast some tensor, e.g., predicate tensor in select
-def broadcast_select_ops(fusedops):
+def broadcast_ops(fusedops):
     for fusedop in fusedops:
         op_names = "_".join([op.akg_name for op in fusedop.ops])
         op_list = []
@@ -214,16 +220,26 @@ def broadcast_select_ops(fusedops):
             op_list.append(broadcast_altern_op)
             op_list.append(select_op)
             fusedop.ops = op_list
+        elif "BatchMatMul_Reshape_Div_Add" in op_names:
+            add_idx = op_names.split("_").index("Add")
+            op_list += fusedop.ops[:add_idx]
+            add_op = fusedop.ops[add_idx]
             
-        if fusedop.backbone_op.akg_name == "Conv2D":
-            backbone_op = fusedop.backbone_op
-            for op in fusedop.ops:
-                if op.akg_name == "PadAkg" and op.input_desc[0].tensor_name == "input_0" and any(fusedop.backbone_op.pad):
-                    op.pad_head = [op.pad_head[0], backbone_op.pad[0], backbone_op.pad[1], op.pad_head[3]]
-                    op.pad_tail = [op.pad_tail[0], backbone_op.pad[2], backbone_op.pad[3], op.pad_tail[3]]
-                    op.output_desc[0].shape[1] += (backbone_op.pad[0] + backbone_op.pad[2])
-                    op.output_desc[0].shape[2] += (backbone_op.pad[1] + backbone_op.pad[3])
-                    backbone_op.pad = [0, 0, 0, 0]
+            add_b_tensor = add_op.input_desc[1]
+            shapes = copy.deepcopy(add_op.input_desc[0].shape)
+            broadcast_add_b_tensor = TensorDesc("broadcast_" + add_b_tensor.tensor_name, add_b_tensor.data_type, shapes, add_b_tensor.format)
+            broadcast_add_b_tensor.sym_shape = copy.deepcopy(add_op.input_desc[0].sym_shape)
+            broadcast_op = OpDesc(None, [add_b_tensor], [broadcast_add_b_tensor])
+            broadcast_op.shape = shapes
+            broadcast_op.akg_name = "BroadcastTo"
+            
+            add_op.input_desc[1] = broadcast_add_b_tensor
+            
+            op_list.append(broadcast_op)
+            op_list.append(add_op)
+            op_list += fusedop.ops[add_idx + 1:]
+            fusedop.ops = op_list
+
     return fusedops
 
 def parse(lines):
@@ -446,22 +462,31 @@ for filename in os.listdir(dirpath):
             lineno += wz
             
             while len(re.findall(r'(  %\d+ = %\d+)|(  %\d+\()', lines[lineno])) != 0:
+                global_input = re.findall(r'(%input\d*|%input_ids)', lines[lineno])
+                if len(global_input) != 0:
+                    for param in fused_op.params:
+                        if len(re.findall("albert|bert|gpt", filename)) != 0:
+                            if len(param.shape) == 2 and param.shape == [32, 256]:
+                                param.sym_shape = [32, te.var("L")]
+                        else:
+                            if len(param.shape) == 4 and param.shape == [32, 3, 224, 224]:
+                                param.sym_shape = [32, 3, 32*te.var("H"), 32*te.var("W")]
                 op_register_pattern = re.compile(r'^  (%\d+) = (%\d+)')
                 op_register = op_register_pattern.findall(lines[lineno])
                 if len(op_register) != 0:
                     op_register = op_register[0]
-                    op_dict[op_register[1]].inputs = [next(filter(lambda p : p != '', param)) for param in re.findall(r'(%\d+)|(meta)|(\d+f\d+)', lines[lineno])[2:]]
+                    op_dict[op_register[1]].inputs = [next(filter(lambda p : p != '', param)) for param in re.findall(r'(%\d+)|(meta)|(\d+f\d+)|(%input\d+)|(%input_ids)', lines[lineno])[2:]]
                     op_dict[op_register[1]].output = op_register[0]
                     graphtensors[op_register[0]] = op_register[1]
                     for tensor in op_dict[op_register[1]].inputs:
-                        if tensor.find("%") == 0:
+                        if len(re.findall("%\d+", tensor)) != 0:
                             op_dict[graphtensors[tensor]].desc.append(op_register[1])
                 else:
                     op_register_pattern = re.compile(r'^  (%\d+)\(%\d+')
                     op_register = op_register_pattern.findall(lines[lineno])[0]
-                    op_dict[op_register].inputs = [next(filter(lambda p : p != '', param)) for param in re.findall(r'(%\d+)|(meta)|(\d+f\d+)', lines[lineno])[1:]]
+                    op_dict[op_register].inputs = [next(filter(lambda p : p != '', param)) for param in re.findall(r'(%\d+)|(meta)|(\d+f\d+)|(%input\d+)|(%input_ids)', lines[lineno])[1:]]
                     for tensor in op_dict[op_register].inputs:
-                        if tensor.find("%") == 0:
+                        if len(re.findall("%\d+", tensor)) != 0:
                             op_dict[graphtensors[tensor]].desc.append(op_register)
                 lineno += 1
             
@@ -478,17 +503,20 @@ for filename in os.listdir(dirpath):
             global_ops = fuse_matmul_for_gpt(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = resimplify(global_ops)
-        global_ops = epilogue_fuse(global_ops, op_dict)
+        global_ops = epilogue_fuse(global_ops, op_dict, graphtensors)
         
         global_ops = pad(global_ops, op_dict)
         # global_ops = conv2matmul(global_ops)
         global_ops = eliminate_redundant_pad(global_ops)
+        propagate_symbolic_shape(global_ops, op_dict, graphtensors)
         global_ops = refactor_reduce_op(global_ops)
         global_ops = flatten_epilogue(global_ops)
         global_ops = fuse_pad_ops(global_ops)
-        if "gpt" in filename:
-            global_ops = broadcast_select_ops(global_ops)
+        if "gpt" in filename or "bert" in filename:
+            global_ops = broadcast_ops(global_ops)
         print("unsupported ops: ", unparsedOps)
+        
+        op_hashset = {}
         
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)

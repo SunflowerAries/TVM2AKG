@@ -3,8 +3,10 @@ from tensor import *
 import copy
 import simple_colors
 from enum import Enum
+import tvm
 
 depthwise_omit = False
+ana = tvm.arith.Analyzer()
 
 class ConvType(Enum):
     NORM = 1
@@ -244,6 +246,126 @@ class OpDesc:
         
         else:
             print("unknown paddedop:\n",  self.akg_name)
+    
+    def compute_shape(self):
+        if self.akg_name in ["Cast", "Relu", "Erf", "Rsqrt", "Neg", "Exp", "Pow", "Clip", "Tanh"]:
+            self.output_desc[0].sym_shape = copy.deepcopy(self.input_desc[0].sym_shape)
+        
+        elif self.akg_name in ["Add", "Mul", "Div", "Sub", "Less"]:
+            if self.input_desc[0].shape == self.output_desc[0].shape:
+                self.output_desc[0].sym_shape = copy.deepcopy(self.input_desc[0].sym_shape)
+            else:
+                self.output_desc[0].sym_shape = copy.deepcopy(self.input_desc[1].sym_shape)
+            
+        elif self.akg_name == "BatchMatMul":
+            sym_shape0 = self.input_desc[0].sym_shape if self.input_desc[0].sym_shape != None else self.input_desc[0].shape
+            sym_shape1 = self.input_desc[1].sym_shape if self.input_desc[1].sym_shape != None else self.input_desc[1].shape
+            if (all(isinstance(shape, int) for shape in sym_shape0) and all(isinstance(shape, int) for shape in sym_shape1)) != True:
+                if self.transpose_b:
+                    self.output_desc[0].sym_shape = [self.output_desc[0].shape[0], sym_shape0[1], sym_shape1[1]]
+                else:
+                    self.output_desc[0].sym_shape = [self.output_desc[0].shape[0], sym_shape0[1], sym_shape1[2]]
+            
+        elif self.akg_name in ["ReduceMax", "ReduceSum"]:
+            sym_shape = self.input_desc[0].sym_shape
+            shape = self.output_desc[0].shape
+            if sym_shape != None:
+                if len(shape) == 3:
+                    self.output_desc[0].sym_shape = [shape[0], sym_shape[1], shape[2]]
+                elif len(shape) == 4:
+                    self.output_desc[0].sym_shape = [shape[0], shape[1], sym_shape[2], shape[3]]
+            
+        elif self.akg_name == "Split":
+            sym_shape = self.input_desc[0].sym_shape
+            shape = self.output_desc[0].shape
+            if sym_shape != None:
+                self.output_desc[0].sym_shape = [shape[0], sym_shape[1], shape[2]]
+                self.output_desc[1].sym_shape = [shape[0], sym_shape[1], shape[2]]
+                self.output_desc[2].sym_shape = [shape[0], sym_shape[1], shape[2]]
+            
+        elif self.akg_name == "Reshape":
+            input_shape = self.input_desc[0].shape
+            sym_shape = self.input_desc[0].sym_shape
+            shape = self.output_desc[0].shape
+            if sym_shape != None:
+                if len(input_shape) < len(shape):
+                    if isinstance(sym_shape[0], int):
+                        assert(len(input_shape) == 3 and len(shape) == 4)
+                        if self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
+                            assert(shape[2] == 16 and shape[3] == 64)
+                            self.output_desc[0].sym_shape = [32, sym_shape[1], shape[2], shape[3]]
+                        else:
+                            self.output_desc[0].sym_shape = [32, sym_shape[0] // 32, sym_shape[1], sym_shape[2]]
+                    else:
+                        assert(len(input_shape) == 2 and len(shape) == 3)
+                        self.output_desc[0].sym_shape = [32, ana.simplify(sym_shape[0] // 32), sym_shape[1]]
+                else:
+                    self.output_desc[0].sym_shape = [ana.simplify(sym_shape[0] * sym_shape[1])] + sym_shape[2:]
+            
+        elif self.akg_name == "Transpose":
+            sym_shape = self.input_desc[0].sym_shape
+            if sym_shape != None:
+                if self.axes == [0, 2, 1, 3]:
+                    self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[2], sym_shape[1], sym_shape[3]]
+                elif self.axes == [0, 2, 1]:
+                    self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[2], sym_shape[1]]
+            
+        elif self.akg_name == "LayoutTransform":
+            sym_shape = self.input_desc[0].sym_shape
+            self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[2], sym_shape[3], sym_shape[1]]
+            
+        elif self.akg_name == "Pool2D":
+            if self.is_global != True:
+                sym_shape = self.input_desc[0].sym_shape
+                sym_h = ana.simplify((sym_shape[1] + self.pad[0] + self.pad[2] - self.kernel_size[0]) // self.strides[0] + 1)
+                sym_w = ana.simplify((sym_shape[2] + self.pad[1] + self.pad[3] - self.kernel_size[1]) // self.strides[0] + 1)
+                self.output_desc[0].sym_shape = [sym_shape[0], sym_h, sym_w, sym_shape[3]]
+            
+        elif self.akg_name == "Conv2D":
+            sym_shape = self.input_desc[0].sym_shape
+            sym_h = ana.simplify((sym_shape[1] + self.pad[0] + self.pad[2] - self.kernel_size[0]) // self.strides[0] + 1)
+            sym_w = ana.simplify((sym_shape[2] + self.pad[1] + self.pad[3] - self.kernel_size[1]) // self.strides[0] + 1)
+            self.output_desc[0].sym_shape = [sym_shape[0], sym_h, sym_w, self.output_desc[0].shape[-1]]
+            
+        elif self.akg_name == "ExpandDims":
+            sym_shape = self.input_desc[0].sym_shape
+            shape = self.output_desc[0].shape
+            if sym_shape != None:
+                self.output_desc[0].sym_shape = copy.deepcopy(shape)
+                self.output_desc[0].sym_shape[-1] = sym_shape[-1]
+            
+        elif self.akg_name == "Gather":
+            sym_shape = self.input_desc[1].sym_shape
+            shape = self.output_desc[0].shape
+            if sym_shape != None:
+                self.output_desc[0].sym_shape = [shape[0], sym_shape[1], shape[2]]
+            
+        elif self.akg_name == "Select":
+            sym_shape = self.input_desc[0].sym_shape
+            if sym_shape != None:
+                self.output_desc[0].sym_shape = copy.deepcopy(self.input_desc[0].sym_shape)
+            
+        elif self.akg_name == "MatMul":
+            sym_shape0 = self.input_desc[0].sym_shape if self.input_desc[0].sym_shape != None else self.input_desc[0].shape
+            sym_shape1 = self.input_desc[1].sym_shape if self.input_desc[1].sym_shape != None else self.input_desc[1].shape
+            if (all(isinstance(shape, int) for shape in sym_shape0) and all(isinstance(shape, int) for shape in sym_shape1)) != True:
+                self.output_desc[0].sym_shape = [sym_shape0[0], sym_shape1[0]]
+        
+        elif self.akg_name == "UnPadAkgv2":
+            sym_shape = self.input_desc[0].sym_shape
+            shape = self.output_desc[0].shape
+            if sym_shape != None:
+                self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2], shape[3]]
+        
+        elif self.akg_name == "PadAkg":
+            sym_shape = self.input_desc[0].sym_shape
+            shape = self.output_desc[0].shape
+            if sym_shape != None:
+                assert(len(sym_shape) == 4)
+                self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2], shape[3]]
+        
+        else:
+            raise Exception(f"Unexpected op {self.akg_name}")
     
     def extend(self, cnt):
         if self.akg_name == "ReduceMean":
