@@ -21,6 +21,24 @@ class TensorDesc:
         self.is_output = False
         self.sym_shape = None
 
+    @classmethod
+    def load_json(cls, json_obj, symbolic_shape, symbolic_map):
+        shapes = json_obj["sym_shape"]
+        changed = False
+        for i, _ in enumerate(shapes):
+            for sym_shape in symbolic_shape:
+                if isinstance(shapes[i], str) and sym_shape in shapes[i]:
+                    shapes[i] = shapes[i].replace(sym_shape, str(symbolic_map[sym_shape]))
+            if isinstance(shapes[i], str):
+                shapes[i] = eval(shapes[i])
+                changed = True
+        tensor = cls(json_obj["tensor_name"], json_obj["data_type"], shapes, json_obj["format"])
+        if "value" in json_obj:
+            tensor.value = json_obj["value"]
+        if changed:
+            tensor.sym_shape = json_obj["sym_shape"]
+        return tensor
+
     def to_dict(self):
         return {
             "tensor_name": self.tensor_name,

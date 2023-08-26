@@ -69,6 +69,34 @@ class FusedOpDesc:
             self.backbone_op = ops[0]
         else:
             self.backbone_op = None
+    
+    @classmethod
+    def load_json(cls, json_obj, symbolic_shape, symbolic_map):
+        ops = []
+        params = []
+        for op_json_obj in json_obj["op_desc"]:
+            ops.append(OpDesc.load_json(op_json_obj, symbolic_shape, symbolic_map))
+        tensor_map = {}
+        for op in ops:
+            if op.akg_name in ["Reshape", "BroadcastTo"]:
+                op.shape = op.output_desc[0].shape
+            for tensor in op.input_desc:
+                if tensor.tensor_name.find("input") == 0 and tensor.tensor_name not in tensor_map and tensor.value == None:
+                    params.append(tensor)
+                    tensor_map[tensor.tensor_name] = tensor
+        tensor_map = {}
+        for op in ops:
+            for tensor in op.output_desc:
+                tensor_map[tensor.tensor_name] = tensor
+            for i, tensor in enumerate(op.input_desc):
+                if tensor.tensor_name in tensor_map:
+                    op.input_desc[i] = tensor_map[tensor.tensor_name]
+        fusedop = cls(None, ops, params, False, False)
+        for op in ops:
+            if op.akg_name in ["Conv2D", "MatMul", "BatchMatMul", "ReduceSum", "ReduceMax", "Pool2D", "Transpose"]:
+                fusedop.backbone_op = op
+                break
+        return fusedop
 
 class OpDesc:
     def __init__(self, input_str, inputs, outputs):
@@ -76,6 +104,108 @@ class OpDesc:
         self.output_desc = outputs
         if input_str != None:
             self.parse(input_str)
+            
+    @classmethod
+    def load_json(cls, json_obj, symbolic_shape, symbolic_map):
+        input_desc = []
+        output_desc = []
+        for tensor_json_obj in json_obj["input_desc"]:
+            input_desc.append(TensorDesc.load_json(tensor_json_obj[0], symbolic_shape, symbolic_map))
+        for tensor_json_obj in json_obj["output_desc"]:
+            output_desc.append(TensorDesc.load_json(tensor_json_obj, symbolic_shape, symbolic_map))
+        op = cls(None, input_desc, output_desc)
+        op.akg_name = json_obj["name"]
+        
+        if json_obj["name"] == "Transpose":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "perm":
+                    op.axes = attr["value"]
+            
+        elif json_obj["name"] == "ExpandDims":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "axis":
+                    op.axis = attr["value"]
+        
+        elif json_obj["name"] in ["ReduceSum", "ReduceMax"]:
+            for attr in json_obj["attr"]:
+                if attr["name"] == "axis":
+                    op.axes = attr["value"]
+                elif attr["name"] == "keep_dims":
+                    op.keepdims = attr["value"]
+            
+        elif json_obj["name"] == "PadAkg":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "tail":
+                    op.pad_tail = attr["value"]
+                elif attr["name"] == "head":
+                    op.pad_head = attr["value"]
+                elif attr["name"] == "pad_val":
+                    op.pad_value = attr["value"]
+            
+        elif json_obj["name"] == "UnPadAkgv2":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "tail":
+                    op.unpad_tail = attr["value"]
+        
+        elif json_obj["name"] == "Concat":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "axis":
+                    op.axis = attr["value"]
+            
+        elif json_obj["name"] == "Split":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "axis":
+                    op.axis = attr["value"]
+        
+        elif json_obj["name"] == "Pool2D":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "global":
+                    op.is_global = attr["value"]
+                elif attr["name"] == "pool_type":
+                    op.pool_type = attr["value"]
+                elif attr["name"] == "data_layout":
+                    op.data_layout = attr["value"]
+                elif attr["name"] == "kernel_size":
+                    op.kernel_size = attr["value"]
+                elif attr["name"] == "strides":
+                    op.strides = attr["value"]
+                elif attr["name"] == "pad":
+                    op.pad = attr["value"]
+            
+        elif json_obj["name"] == "Conv2D":
+            op.is_depth_wise = False
+            for attr in json_obj["attr"]:
+                if attr["name"] == "kernel_size":
+                    op.kernel_size = attr["value"]
+                elif attr["name"] == "stride":
+                    op.strides = attr["value"][:2]
+                elif attr["name"] == "pad":
+                    op.pad = attr["value"]
+                elif attr["name"] == "is_depth_wise":
+                    op.is_depth_wise = True
+        
+        elif json_obj["name"] == "BatchMatMul":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "transpose_b":
+                    op.transpose_b = attr["value"]
+        
+        elif json_obj["name"] == "LayoutTransform":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "src_format":
+                    op.src_format = attr["value"]
+                elif attr["name"] == "dst_format":
+                    op.dst_format = attr["value"]
+            
+        elif json_obj["name"] in ["Reshape", "BroadcastTo"]:
+            for attr in json_obj["attr"]:
+                if attr["name"] == "shape":
+                    op.shape = attr["value"]
+            
+        elif json_obj["name"] == "Gather":
+            for attr in json_obj["attr"]:
+                if attr["name"] == "axis":
+                    op.take_axis = attr["value"]
+        return op
 
     def to_dict(self):
         if self.akg_name == "Concat":
@@ -129,6 +259,130 @@ class OpDesc:
                 output_tensor.shape = [output_tensor.shape[0], output_tensor.shape[3]]
         
         return self
+    
+    def propagate_shape(self):
+        if self.akg_name == "Reshape":
+            if self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
+                self.output_desc[0].shape[1] = self.input_desc[0].shape[1]
+            elif self.output_desc[0].shape[2] == self.output_desc[0].shape[3]:
+                self.output_desc[0].shape[2] = self.output_desc[0].shape[3] = self.input_desc[0].shape[2]
+            else:
+                self.output_desc[0].shape[2] = self.input_desc[0].shape[1]
+        
+        elif self.akg_name == "Split":
+            self.output_desc[0].shape[1] = self.output_desc[1].shape[1] = self.output_desc[2].shape[1] = self.input_desc[0].shape[1]
+        
+        elif self.akg_name == "Transpose":
+            self.output_desc[0].shape[1] = self.input_desc[0].shape[2]
+            self.output_desc[0].shape[2] = self.input_desc[0].shape[1]
+        
+        elif self.akg_name in ["Div", "Add", "Mul"]:
+            if len(self.input_desc[0].shape) > len(self.input_desc[1].shape):
+                for i, s in enumerate(self.input_desc[0].shape):
+                    self.output_desc[0].shape[i] = s
+            else:
+                for i, s in enumerate(self.input_desc[1].shape):
+                    self.output_desc[0].shape[i] = s
+                    
+        elif self.akg_name == "BroadcastTo":
+            self.output_desc[0].shape[2] = self.output_desc[0].shape[3] = self.input_desc[0].shape[-1]
+    
+        elif self.akg_name in ["Cast", "Erf"]:
+            for i, s in enumerate(self.input_desc[0].shape):
+                self.output_desc[0].shape[i] = s
+    
+    def get_padv2(self, pad_k=False):
+        if self.akg_name == "BatchMatMul":
+            tensor_a = self.input_desc[0]
+            tensor_b = self.input_desc[1]
+            if pad_k:
+                assert(tensor_a.tensor_name.find("pad_") != -1 and tensor_b.tensor_name.find("pad_") == -1)
+                old_shape = tensor_a.shape[2]
+                ops = []
+                if old_shape % 32 != 0:
+                    new_shape = ((old_shape + 32) // 32) * 32
+                    tensor_a.shape[2] = new_shape
+                    tensor_a.op.pad_tail[2] = new_shape - old_shape
+                    ops.append(tensor_a.op)
+                
+                n_idx = 1
+                if self.transpose_b:
+                    n_idx = -1
+                old_shape = tensor_b.shape[n_idx]
+                if old_shape % 32 != 0:
+                    new_shape = ((old_shape + 32) // 32) * 32
+                    shapes = copy.deepcopy(tensor_b.shape)
+                    shapes[n_idx] = new_shape
+                    pad_b_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+                    pad_b = OpDesc(None, [tensor_b], [pad_b_tensor])
+                    pad_b.akg_name = "PadAkg"
+                    pad_b.pad_head = [0, 0, 0]
+                    pad_b.pad_tail = [0, 0, 0]
+                    pad_b.pad_tail[n_idx] = new_shape - old_shape
+                    pad_b.pad_value = 0
+                    self.input_desc[1] = pad_b_tensor
+                    ops.append(pad_b)
+                
+                ops.append(self)
+                return ops
+            else:
+                old_shape = tensor_a.shape[1]
+                ops = []
+                if old_shape % 32 != 0:
+                    new_shape = ((old_shape + 32) // 32) * 32
+                    shapes = copy.deepcopy(tensor_a.shape)
+                    shapes[1] = new_shape
+                    pad_a_tensor = TensorDesc("pad_" + tensor_a.tensor_name, tensor_a.data_type, shapes, tensor_a.format)
+                    pad_a = OpDesc(None, [tensor_a], [pad_a_tensor])
+                    pad_a.akg_name = "PadAkg"
+                    pad_a.pad_head = [0, 0, 0]
+                    pad_a.pad_tail = [0, new_shape - old_shape, 0]
+                    pad_a.pad_value = 0
+                    pad_a_tensor.op = pad_a
+                    self.input_desc[0] = pad_a_tensor
+                    self.output_desc[0].shape[1] = new_shape
+                    ops.append(pad_a)
+                
+                n_idx = -1
+                if self.transpose_b:
+                    n_idx = 1
+                old_shape = tensor_b.shape[n_idx]
+                if old_shape % 32 != 0:
+                    new_shape = ((old_shape + 32) // 32) * 32
+                    shapes = copy.deepcopy(tensor_b.shape)
+                    shapes[n_idx] = new_shape
+                    pad_b_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+                    pad_b = OpDesc(None, [tensor_b], [pad_b_tensor])
+                    pad_b.akg_name = "PadAkg"
+                    pad_b.pad_head = [0, 0, 0]
+                    pad_b.pad_tail = [0, 0, 0]
+                    pad_b.pad_tail[n_idx] = new_shape - old_shape
+                    pad_b.pad_value = 0
+                    pad_b_tensor.op = pad_b
+                    self.input_desc[1] = pad_b_tensor
+                    self.output_desc[0].shape[2] = new_shape
+                    ops.append(pad_b)
+                
+                ops.append(self)
+                return ops
+        
+        elif self.akg_name == "BroadcastTo":
+            tensor = self.input_desc[0]
+            old_shape = tensor.shape[-1]
+            new_shape = ((old_shape + 32) // 32) * 32
+            shapes = copy.deepcopy(tensor.shape)
+            shapes[-1] = new_shape
+            pad_tensor = TensorDesc("pad_" + tensor.tensor_name, tensor.data_type, shapes, tensor.format)
+            pad = OpDesc(None, [tensor], [pad_tensor])
+            pad.akg_name = "PadAkg"
+            pad.pad_head = [0] * len(shapes)
+            pad.pad_tail = copy.deepcopy(pad.pad_head)
+            pad.pad_tail[-1] = new_shape - old_shape
+            pad.pad_value = 0
+            self.input_desc[0] = pad_tensor
+            self.output_desc[0].shape[-1] = new_shape
+            
+            return [pad, self]
     
     def get_pad(self, pad_k=False):
         if self.akg_name in ["Conv2D", "MatMul"]:
@@ -279,9 +533,9 @@ class OpDesc:
             sym_shape = self.input_desc[0].sym_shape
             shape = self.output_desc[0].shape
             if sym_shape != None:
-                self.output_desc[0].sym_shape = [shape[0], sym_shape[1], shape[2]]
-                self.output_desc[1].sym_shape = [shape[0], sym_shape[1], shape[2]]
-                self.output_desc[2].sym_shape = [shape[0], sym_shape[1], shape[2]]
+                self.output_desc[0].sym_shape = sym_shape[:-1] + [shape[-1]]
+                self.output_desc[1].sym_shape = sym_shape[:-1] + [shape[-1]]
+                self.output_desc[2].sym_shape = sym_shape[:-1] + [shape[-1]]
             
         elif self.akg_name == "Reshape":
             input_shape = self.input_desc[0].shape
@@ -297,8 +551,11 @@ class OpDesc:
                         else:
                             self.output_desc[0].sym_shape = [32, sym_shape[0] // 32, sym_shape[1], sym_shape[2]]
                     else:
-                        assert(len(input_shape) == 2 and len(shape) == 3)
-                        self.output_desc[0].sym_shape = [32, ana.simplify(sym_shape[0] // 32), sym_shape[1]]
+                        assert(len(input_shape) == 2)
+                        if len(shape) == 3:
+                            self.output_desc[0].sym_shape = [32, ana.simplify(sym_shape[0] // 32), sym_shape[1]]
+                        elif len(shape) == 4:
+                            self.output_desc[0].sym_shape = [32, ana.simplify(sym_shape[0] // 32), sym_shape[1] // 64, 64]
                 else:
                     self.output_desc[0].sym_shape = [ana.simplify(sym_shape[0] * sym_shape[1])] + sym_shape[2:]
             
@@ -363,6 +620,11 @@ class OpDesc:
             if sym_shape != None:
                 assert(len(sym_shape) == 4)
                 self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2], shape[3]]
+        
+        elif self.akg_name == "BroadcastTo":
+            sym_shape = self.input_desc[0].sym_shape
+            if sym_shape != None:
+                raise Exception(f"Unexpected broadcast op")
         
         else:
             raise Exception(f"Unexpected op {self.akg_name}")
@@ -527,10 +789,10 @@ class OpDesc:
         
         elif self.name == "nn.global_avg_pool2d":
             self.pool_type = "avg"
-            self.data_layout = "NCHW"
-            self.kernel_size = self.input_desc[0].shape[-2:]
+            self.data_layout = "NHWC"
+            self.kernel_size = self.input_desc[0].shape[1:3]
             self.strides = [1, 1]
-            self.is_global = False
+            self.is_global = True
             self.pad = [0, 0, 0, 0]
         
         elif self.name == "nn.conv2d":

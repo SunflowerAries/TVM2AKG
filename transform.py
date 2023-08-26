@@ -7,11 +7,6 @@ from tvm import te
 
 op_hashset = {}
 
-class SoftMax(Enum):
-    NORM_MAX = 1
-    MULTIDIM_MAX = 2
-    NORM_SUM = 3
-
 def simplify(fused_op):
     ops = []
     replaced_op_dict = {}
@@ -116,49 +111,7 @@ def conv2matmul(fusedops):
                     if op.akg_name == "Conv2D":
                         op.akg_name = "MatMul"
             
-    return fusedops                        
-
-def refactor_reduce_op(fusedops):
-    ops = []
-    for fusedop in fusedops:
-        op_names = "_".join([op.akg_name for op in fusedop.ops])
-        # mean/variance
-        if "ReduceSum_Mul" in op_names:
-            reduce_op = fusedop.ops[-2]
-            # exchange reducesum and mul
-            if reduce_op.akg_name == "ReduceSum":
-                mul_op = fusedop.ops[-1]
-                mul_op.input_desc[0] = reduce_op.input_desc[0]
-                mul_op_tensor_name = mul_op.output_desc[0].tensor_name
-                mul_op.output_desc[0].tensor_name = reduce_op.output_desc[0].tensor_name
-                mul_op.output_desc[0].shape = mul_op.input_desc[0].shape
-                mul_op.output_desc[0].sym_shape = copy.deepcopy(mul_op.input_desc[0].sym_shape)
-                reduce_op.input_desc[0] = mul_op.output_desc[0]
-                reduce_op.output_desc[0].tensor_name = mul_op_tensor_name
-                fusedop.ops[-2] = mul_op
-                fusedop.ops[-1] = reduce_op
-            ops.append(fusedop)
-        elif "ReduceMax" in op_names:
-            reducemax_idx = fusedop.ops.index(fusedop.backbone_op)
-            op_list = fusedop.ops[:reducemax_idx+1]
-            reducemax_op = FusedOpDesc(fusedop.id, op_list, fusedop.params, False, False)
-            reducemax_op.backbone_op = op_list[-1]
-            reducemax_op.lineno = fusedop.lineno
-            reducemax_op.softmax_type = SoftMax.NORM_MAX
-            if "Add" in op_names:
-                reducemax_op.softmax_type = SoftMax.MULTIDIM_MAX
-            ops.append(reducemax_op)
-            
-            params = [op_list[-1].input_desc[0], op_list[-1].output_desc[0]]
-            op_list = fusedop.ops[reducemax_idx+1:]
-            reducesum_op = FusedOpDesc(fusedop.id, op_list, params, False, False)
-            reducesum_op.lineno = fusedop.lineno
-            reducesum_op.softmax_type = SoftMax.NORM_SUM
-            ops.append(reducesum_op)
-        else:
-            ops.append(fusedop)
-            
-    return ops
+    return fusedops
 
 def flatten_epilogue(fusedops):
     for fusedop in fusedops:
@@ -188,6 +141,74 @@ def fuse_pad_ops(fusedops):
                     backbone_op.pad = [0, 0, 0, 0]
     return fusedops
 
+def fuse_reduce_ops(fusedops):
+    ops = []
+    for fusedop in fusedops:
+        op_names = "_".join([op.akg_name for op in fusedop.ops])
+        if fusedop.is_skip != True:
+            if op_names in ["Cast_ReduceSum_Mul_Sub", "Cast_Add_ReduceSum_Mul_Sub"]:
+                assert(len(fusedop.desc) == 1)
+                last_op = fusedop.ops[-1]
+                last_op_output = last_op.output_desc[0]
+                output_cnt = int(last_op_output.tensor_name.split('_')[-1]) + 1
+                epilogue_op = op_dict[fusedop.desc[0]]
+                epilogue_op.is_skip = True
+                for op in epilogue_op.ops:
+                    for i, input in enumerate(op.input_desc):
+                        if input.tensor_name == "input_0":
+                            op.input_desc[i] = last_op_output
+                    origin_name = op.output_desc[0].tensor_name
+                    op.output_desc[0].tensor_name = f"output_0_{int(origin_name.split('_')[-1])+output_cnt}"
+                    fusedop.ops.append(op)
+                for param in epilogue_op.params[1:]:
+                    fusedop.params.append(param)
+            elif op_names in ["Cast_ReduceSum_Mul", "Cast_Add_ReduceSum_Mul"]:
+                assert(len(fusedop.desc) == 1)
+                last_op = fusedop.ops[-1]
+                last_op_output = last_op.output_desc[0]
+                output_cnt = int(last_op_output.tensor_name.split('_')[-1]) + 1
+                epilogue_op = op_dict[fusedop.desc[0]]
+                epilogue_op.is_skip = True
+                
+                start_idx = 1
+                if "Cast_Add" in op_names:
+                    start_idx = 2
+                
+                origin_input_tensor0 = epilogue_op.ops[start_idx].input_desc[0].tensor_name
+                origin_input_tensor1 = epilogue_op.ops[start_idx].input_desc[1].tensor_name                
+                
+                for op in epilogue_op.ops[start_idx:]:
+                    for i, input in enumerate(op.input_desc):
+                        if input.tensor_name == origin_input_tensor0:
+                            op.input_desc[i] = fusedop.ops[start_idx - 1].output_desc[0]
+                        elif input.tensor_name == origin_input_tensor1:
+                            op.input_desc[i] = last_op_output
+                    origin_name = op.output_desc[0].tensor_name
+                    op.output_desc[0].tensor_name = f"output_0_{int(origin_name.split('_')[-1])+output_cnt}"
+                    fusedop.ops.append(op)
+                for param in epilogue_op.params[start_idx+1:]:
+                    fusedop.params.append(param)
+            ops.append(fusedop)
+    return ops
+
+def canonical_simplify(fusedops):
+    for fusedop in fusedops:
+        op_names = "_".join([op.akg_name for op in fusedop.ops])
+        for i, param in enumerate(fusedop.params):
+            if param.tensor_name.find("output") == 0:
+                if op_names == "Transpose":
+                    fusedop.params[i].tensor_name = "input_0"
+                else:
+                    raise Exception(f"Unexpected fusedop {op_names}")
+        if op_names == "Gather_Cast" and len(fusedop.params) == 1:
+            fusedop.params.append(fusedop.ops[0].input_desc[1])
+            fusedop.ops[0].input_desc[1].value = None
+        elif "Reshape_Div_Add" in op_names:
+            fusedop.params[0] = fusedop.ops[1].input_desc[0]
+            fusedop.params[0].tensor_name = "input_0"
+            fusedop.ops = fusedop.ops[1:]
+    return fusedops
+
 # broadcast some tensor, e.g., predicate tensor in select
 def broadcast_ops(fusedops):
     for fusedop in fusedops:
@@ -198,6 +219,8 @@ def broadcast_ops(fusedops):
             op_list += fusedop.ops[:select_idx]
             select_op = fusedop.ops[select_idx]
             
+            if select_op.input_desc[0].shape == select_op.input_desc[1].shape:
+                continue
             predicte_tensor = select_op.input_desc[0]
             predicte_tensor.data_type = "int8"
             shapes = copy.deepcopy(select_op.input_desc[1].shape)
@@ -220,6 +243,7 @@ def broadcast_ops(fusedops):
             op_list.append(broadcast_altern_op)
             op_list.append(select_op)
             fusedop.ops = op_list
+            
         elif "BatchMatMul_Reshape_Div_Add" in op_names:
             add_idx = op_names.split("_").index("Add")
             op_list += fusedop.ops[:add_idx]
@@ -375,11 +399,14 @@ def to_json(fusedop, params, filename, lineno):
     visited = hash_value in op_hashset[opname]
     succeed = True
     op_hashset[opname].add(hash_value)
+    
+    is_symbolic = any([param.sym_shape != None for param in params])
 
     json_obj = {
         "composite": True,
         "composite_graph": "68.283",
         "id": 0,
+        "is_symbolic": is_symbolic,
         "input_desc": [[i.to_dict()] for i in params],
         "op": opname + f'_{hash_value}',
         "op_desc": [op.to_dict() for op in ops],
@@ -389,22 +416,17 @@ def to_json(fusedop, params, filename, lineno):
         "filename": filename,
         "lineno": lineno
     }
-    if hasattr(fusedop, "softmax_type") and len(fusedop.ops) > 1 and fusedop.softmax_type.value < SoftMax.NORM_SUM.value:
-        json_obj["output_desc"] = [o.to_dict() for o in ops[-1].input_desc] + [o.to_dict() for o in ops[-1].output_desc]
     
-    if "BatchMatMul_Add_Split_Reshape_Reshape_Reshape_Transpose_Transpose_Transpose" in opname:
+    if opname == "Fused_MatMul_Add_Split_Reshape_Reshape_Reshape_Transpose_Transpose_Transpose":
         json_obj["output_desc"] = [o.to_dict() for o in ops[-3].output_desc] + [o.to_dict() for o in ops[-2].output_desc] + [o.to_dict() for o in ops[-1].output_desc]
     
     if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
         json_obj["pragma_enable_micro_kernel_code"] = True
     
-    if hasattr(fusedop, "softmax_type"):
-        if fusedop.softmax_type == SoftMax.MULTIDIM_MAX:
-            json_obj["multi_dim_reducemax"] = True
-        elif fusedop.softmax_type == SoftMax.NORM_SUM:
-            json_obj["enable_reduce_epilogue_fusion"] = True
-    
-    if "ReduceSum" in opname and opname[-9:] != "ReduceSum":
+    if len(re.findall("ReduceSum|ReduceMax", opname)) == 2:
+        json_obj["enable_softmax_fusion"] = True
+        
+    elif "ReduceSum" in opname and opname[-9:] != "ReduceSum":
         json_obj["enable_reduce_epilogue_fusion"] = True
     
     if opname in ["Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_Split", "Fused_LayoutTransform_Concat_Reshape_Transpose_Reshape_LayoutTransform"]:
@@ -495,10 +517,10 @@ for filename in os.listdir(dirpath):
         
         # list of fusedops(id, inputs, output, desc, ops), map(id: fuesd_op)
         global_ops = eliminate_zero_ops_and_pad_prop(global_ops, op_dict, graphtensors)
-        if "albert" in filename:
+        if "bert" in filename:
             global_ops = fuse_matmul_for_albert(global_ops, op_dict, graphtensors)
-        elif "bert" in filename:
-            global_ops = fuse_matmul_for_bert(global_ops, op_dict, graphtensors)
+        # elif "bert" in filename:
+        #     global_ops = fuse_matmul_for_bert(global_ops, op_dict, graphtensors)
         elif "gpt" in filename:
             global_ops = fuse_matmul_for_gpt(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
@@ -506,22 +528,25 @@ for filename in os.listdir(dirpath):
         global_ops = epilogue_fuse(global_ops, op_dict, graphtensors)
         
         global_ops = pad(global_ops, op_dict)
-        # global_ops = conv2matmul(global_ops)
         global_ops = eliminate_redundant_pad(global_ops)
-        propagate_symbolic_shape(global_ops, op_dict, graphtensors)
-        global_ops = refactor_reduce_op(global_ops)
+        global_ops = propagate_symbolic_shape(global_ops, op_dict, graphtensors)
         global_ops = flatten_epilogue(global_ops)
         global_ops = fuse_pad_ops(global_ops)
         if "gpt" in filename or "bert" in filename:
             global_ops = broadcast_ops(global_ops)
+        global_ops = fuse_reduce_ops(global_ops)
+        global_ops = canonical_simplify(global_ops)
         print("unsupported ops: ", unparsedOps)
         
         op_hashset = {}
+        
+        if not os.path.isdir(os.path.join(infopath, filename)):
+            os.mkdir(os.path.join(infopath, filename))
         
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)
         
             if need_dump:
-                json_name = os.path.join(infopath, json_obj['op'] + '.json')
+                json_name = os.path.join(infopath, filename, json_obj['op'] + '.json')
                 with open(json_name, 'w') as json_file:
                     json_file.write(json.dumps(json_obj, indent=4))
