@@ -43,8 +43,17 @@ def to_json(fusedop, params, filename, lineno):
     if "Split" in opname:
         json_obj["output_desc"] = [o.to_dict() for o in ops[-3].output_desc] + [o.to_dict() for o in ops[-2].output_desc] + [o.to_dict() for o in ops[-1].output_desc]
     
-    if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
+    has_symbolic_var = False
+    for tensor in params:
+        if tensor.sym_shape != None:
+            for shape in tensor.sym_shape:
+                if isinstance(shape, str):
+                    has_symbolic_var = True
+                    break
+        
+    if has_symbolic_var:
         json_obj["pragma_enable_micro_kernel_code"] = True
+        json_obj["symbolic_var"] = [(var, symbolic_map[var]) for var in symbolic_shape]
     
     if len(re.findall("ReduceSum|ReduceMax", opname)) == 2:
         json_obj["enable_softmax_fusion"] = True
@@ -70,6 +79,7 @@ def unpad(pad_ops, old_shape, new_shape):
     if "PadAkg_BatchMatMul_Reshape_Transpose" in op_names:
         shapes[1] = old_shape
         unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
+        unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
         unpad = OpDesc(None, [last_tensor], [unpad_tensor])
         unpad.akg_name = "UnPadAkgv2"
         unpad.unpad_tail = [0] * len(shapes)
@@ -78,6 +88,7 @@ def unpad(pad_ops, old_shape, new_shape):
     elif "PadAkg_PadAkg_BatchMatMul" in op_names:
         shapes[1] = shapes[2] = old_shape
         unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
+        unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
         unpad = OpDesc(None, [last_tensor], [unpad_tensor])
         unpad.akg_name = "UnPadAkgv2"
         unpad.unpad_tail = [0] * len(shapes)
@@ -172,8 +183,11 @@ def load_and_instantiate(graphname):
                     else:
                         json_obj["op"] = origin_op
                         
-                    if "PadAkg" in json_obj["op"] and "Split" in json_obj["op"] and "Transpose" in json_obj["op"]:
-                        json_obj["enable_pad_split_transpose"] = True
+                    conv_op = list(filter(lambda op : op["name"] == "Conv2D", json_obj["op_desc"]))
+                    if len(conv_op) > 0 and 1 in conv_op[0]["output_desc"][0]["shape"][1:3]:
+                        op_names = json_obj["op"].split("_")
+                        op_names[-1] = op_names[-1] + "".join(map(str, conv_op[0]["output_desc"][0]["shape"][1:3]))
+                        json_obj["op"] = "_".join(op_names)
                     
                 shape_info = "_".join(list(map(str, symbolic_map.values())))
                 if not os.path.isdir(os.path.join(infopath, graphname, shape_info)):
@@ -195,15 +209,14 @@ for graphname in os.listdir(infopath):
     op_hashset = {}
     if "bert" in graphname:
         symbolic_shape.append("L")
-        for i in range(8, 136, 8):
+        for i in range(8, 264, 8):
             symbolic_map["L"] = i
             load_and_instantiate(graphname)
-    # else:
-    #     symbolic_shape.append("H")
-    #     symbolic_shape.append("W")
-    #     for i in range(1, 8):
-    #         for j in range(1, 8):
-    #             symbolic_map["H"] = i
-    #             symbolic_map["W"] = j
-    #             load_and_instantiate(graphname)
-    
+    else:
+        symbolic_shape.append("H")
+        symbolic_shape.append("W")
+        for i in range(1, 8):
+            for j in range(1, 8):
+                symbolic_map["H"] = i
+                symbolic_map["W"] = j
+                load_and_instantiate(graphname)

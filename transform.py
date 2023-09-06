@@ -3,6 +3,7 @@ from enum import Enum
 from op import *
 from tensor import *
 from graph import *
+import tvm
 from tvm import te
 
 op_hashset = {}
@@ -42,7 +43,8 @@ def resimplify(fusedops):
             fusedop.is_skip = True
             prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
             assert(len(fusedop.desc) == 1)
-            prelogue_op.desc[prelogue_op.desc.index(fusedop.id)] = fusedop.desc[0]
+            if fusedop.id in prelogue_op.desc:
+                prelogue_op.desc[prelogue_op.desc.index(fusedop.id)] = fusedop.desc[0]
         elif fusedop.ops[0].akg_name == "Cast":
             if len(fusedop.ops) > 1:
                 if fusedop.ops[1].akg_name == "Cast":
@@ -207,6 +209,14 @@ def canonical_simplify(fusedops):
             fusedop.params[0] = fusedop.ops[1].input_desc[0]
             fusedop.params[0].tensor_name = "input_0"
             fusedop.ops = fusedop.ops[1:]
+        
+        if "Reshape_Cast" in op_names:
+            if "Reshape_Cast" == op_names or len(re.findall("ReduceSum|Pool2D", op_names)) != 0:
+                ops = fusedop.ops
+                ops[-1].input_desc[0] = ops[-2].input_desc[0]
+                ops[-1].output_desc[0].shape = copy.deepcopy(ops[-1].input_desc[0].shape)
+                ops[-1].output_desc[0].sym_shape = copy.deepcopy(ops[-1].input_desc[0].sym_shape)
+                fusedop.ops = ops[:-2] + [ops[-1]]
     return fusedops
 
 # broadcast some tensor, e.g., predicate tensor in select
@@ -420,7 +430,15 @@ def to_json(fusedop, params, filename, lineno):
     if opname == "Fused_MatMul_Add_Split_Reshape_Reshape_Reshape_Transpose_Transpose_Transpose":
         json_obj["output_desc"] = [o.to_dict() for o in ops[-3].output_desc] + [o.to_dict() for o in ops[-2].output_desc] + [o.to_dict() for o in ops[-1].output_desc]
     
-    if fusedop.backbone_op.akg_name in ["Conv2D", "MatMul", "BatchMatMul"]:
+    has_symbolic_var = False
+    for tensor in params:
+        if tensor.sym_shape != None:
+            for shape in tensor.sym_shape:
+                if isinstance(shape, (tvm.tir.Var, tvm.tir.Mul)):
+                    has_symbolic_var = True
+                    break
+        
+    if has_symbolic_var:
         json_obj["pragma_enable_micro_kernel_code"] = True
     
     if len(re.findall("ReduceSum|ReduceMax", opname)) == 2:
@@ -443,6 +461,12 @@ def to_json(fusedop, params, filename, lineno):
                     succeed = False
                     print(simple_colors.red("skip this conv fused op due to its input channel not divisible by 32"))
                     print(json.dumps(json_obj, indent=4))
+        json_obj["times"] = 1
+    else:
+        json_name = os.path.join(infopath, filename, json_obj['op'] + '.json')
+        with open(json_name) as json_file:
+            json_obj = json.load(json_file)
+        json_obj["times"] = json_obj["times"] + 1
     return json_obj, visited != True and succeed
 
 dirpath = os.path.join(os.getcwd(), 'micro_workloads')
@@ -546,7 +570,7 @@ for filename in os.listdir(dirpath):
         for fusedop in global_ops:
             json_obj, need_dump = to_json(fusedop, fusedop.params, filename, fusedop.lineno)
         
-            if need_dump:
-                json_name = os.path.join(infopath, filename, json_obj['op'] + '.json')
-                with open(json_name, 'w') as json_file:
-                    json_file.write(json.dumps(json_obj, indent=4))
+            # if need_dump:
+            json_name = os.path.join(infopath, filename, json_obj['op'] + '.json')
+            with open(json_name, 'w') as json_file:
+                json_file.write(json.dumps(json_obj, indent=4))

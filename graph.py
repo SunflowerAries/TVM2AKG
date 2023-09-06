@@ -576,7 +576,7 @@ def fuse_matmul_for_albert(fusedops, op_dict, graphtensors):
                         add_op.akg_name = "Add"
                                             
                         split_op = OpDesc(None, [add_tensor], [])
-                        split_op.axis = 2
+                        split_op.axis = 1
                         reshape_op_list = []
                         transpose_op_list = []
                         
@@ -654,6 +654,7 @@ def fuse_matmul_for_albert(fusedops, op_dict, graphtensors):
                             prelogue_op.desc.remove(desc)
                         prelogue_op.desc.append(fused_matmul_op.id)
                         op_dict[fused_matmul_op.id] = fused_matmul_op
+                        fused_matmul_op.backbone_op = matmul_op
                         continue
             
             ops.append(fusedop)
@@ -960,7 +961,7 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
         if fusedop.backbone_op.akg_name in ["Pool2D", "ReduceMax", "ReduceSum"]:
             prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
             if len(prelogue_op.desc) == 1 and prelogue_op.ops[-1].akg_name == "Cast":
-                if fusedop.backbone_op.akg_name == "ReduceMax" and prelogue_op.ops[-2].akg_name == "Add":
+                if fusedop.backbone_op.akg_name == "ReduceMax" and len(prelogue_op.ops) > 1 and prelogue_op.ops[-2].akg_name == "Add":
                     
                     cast_op = prelogue_op.ops[-1]
                     output_cnt = int(cast_op.output_desc[0].tensor_name.split('_')[-1]) + 1
