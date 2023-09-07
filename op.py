@@ -109,8 +109,12 @@ class OpDesc:
     def load_json(cls, json_obj, symbolic_shape, symbolic_map):
         input_desc = []
         output_desc = []
-        for tensor_json_obj in json_obj["input_desc"]:
-            input_desc.append(TensorDesc.load_json(tensor_json_obj[0], symbolic_shape, symbolic_map))
+        if json_obj["name"] == "Concat":
+            for tensor_json_obj in json_obj["input_desc"][0]:
+                input_desc.append(TensorDesc.load_json(tensor_json_obj, symbolic_shape, symbolic_map))
+        else:
+            for tensor_json_obj in json_obj["input_desc"]:
+                input_desc.append(TensorDesc.load_json(tensor_json_obj[0], symbolic_shape, symbolic_map))
         for tensor_json_obj in json_obj["output_desc"]:
             output_desc.append(TensorDesc.load_json(tensor_json_obj, symbolic_shape, symbolic_map))
         op = cls(None, input_desc, output_desc)
@@ -260,7 +264,7 @@ class OpDesc:
         
         return self
     
-    def propagate_shape(self):
+    def propagate_shape(self, is_left = False):
         if self.akg_name == "Reshape":
             if self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
                 self.output_desc[0].shape[1] = self.input_desc[0].shape[1]
@@ -276,8 +280,8 @@ class OpDesc:
             self.output_desc[0].shape[1] = self.input_desc[0].shape[2]
             self.output_desc[0].shape[2] = self.input_desc[0].shape[1]
         
-        elif self.akg_name in ["Div", "Add", "Mul"]:
-            if len(self.input_desc[0].shape) > len(self.input_desc[1].shape):
+        elif self.akg_name in ["Div", "Add", "Mul", "Sub"]:
+            if len(self.input_desc[0].shape) > len(self.input_desc[1].shape) or is_left:
                 for i, s in enumerate(self.input_desc[0].shape):
                     self.output_desc[0].shape[i] = s
             else:
@@ -286,8 +290,11 @@ class OpDesc:
                     
         elif self.akg_name == "BroadcastTo":
             self.output_desc[0].shape[2] = self.output_desc[0].shape[3] = self.input_desc[0].shape[-1]
-    
-        elif self.akg_name in ["Cast", "Erf"]:
+
+        elif self.akg_name == "ExpandDims":
+            self.output_desc[0].shape[-1] = self.input_desc[0].shape[-1]
+        
+        elif self.akg_name in ["Cast", "Erf", "Exp"]:
             for i, s in enumerate(self.input_desc[0].shape):
                 self.output_desc[0].shape[i] = s
     
@@ -300,7 +307,7 @@ class OpDesc:
                 old_shape = tensor_a.shape[2]
                 ops = []
                 if old_shape % 32 != 0:
-                    new_shape = ((old_shape + 32) // 32) * 32
+                    new_shape = ((old_shape + 31) // 32) * 32
                     tensor_a.shape[2] = new_shape
                     tensor_a.op.pad_tail[2] = new_shape - old_shape
                     ops.append(tensor_a.op)
@@ -310,7 +317,7 @@ class OpDesc:
                     n_idx = -1
                 old_shape = tensor_b.shape[n_idx]
                 if old_shape % 32 != 0:
-                    new_shape = ((old_shape + 32) // 32) * 32
+                    new_shape = ((old_shape + 31) // 32) * 32
                     shapes = copy.deepcopy(tensor_b.shape)
                     shapes[n_idx] = new_shape
                     pad_b_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
@@ -329,7 +336,7 @@ class OpDesc:
                 old_shape = tensor_a.shape[1]
                 ops = []
                 if old_shape % 32 != 0:
-                    new_shape = ((old_shape + 32) // 32) * 32
+                    new_shape = ((old_shape + 31) // 32) * 32
                     shapes = copy.deepcopy(tensor_a.shape)
                     shapes[1] = new_shape
                     pad_a_tensor = TensorDesc("pad_" + tensor_a.tensor_name, tensor_a.data_type, shapes, tensor_a.format)
@@ -339,6 +346,7 @@ class OpDesc:
                     pad_a.pad_tail = [0, new_shape - old_shape, 0]
                     pad_a.pad_value = 0
                     pad_a_tensor.op = pad_a
+                    pad_a_tensor.sym_shape = copy.deepcopy(tensor_a.sym_shape)
                     self.input_desc[0] = pad_a_tensor
                     self.output_desc[0].shape[1] = new_shape
                     ops.append(pad_a)
@@ -348,7 +356,7 @@ class OpDesc:
                     n_idx = 1
                 old_shape = tensor_b.shape[n_idx]
                 if old_shape % 32 != 0:
-                    new_shape = ((old_shape + 32) // 32) * 32
+                    new_shape = ((old_shape + 31) // 32) * 32
                     shapes = copy.deepcopy(tensor_b.shape)
                     shapes[n_idx] = new_shape
                     pad_b_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
@@ -359,6 +367,7 @@ class OpDesc:
                     pad_b.pad_tail[n_idx] = new_shape - old_shape
                     pad_b.pad_value = 0
                     pad_b_tensor.op = pad_b
+                    pad_b_tensor.sym_shape = copy.deepcopy(tensor_b.sym_shape)
                     self.input_desc[1] = pad_b_tensor
                     self.output_desc[0].shape[2] = new_shape
                     ops.append(pad_b)
@@ -366,10 +375,28 @@ class OpDesc:
                 ops.append(self)
                 return ops
         
+        elif self.akg_name == "Transpose":
+            tensor = self.input_desc[0]
+            old_shape = tensor.shape[1]
+            new_shape = ((old_shape + 31) // 32) * 32
+            shapes = copy.deepcopy(tensor.shape)
+            shapes[1] = new_shape
+            pad_tensor = TensorDesc("pad_" + tensor.tensor_name, tensor.data_type, shapes, tensor.format)
+            pad = OpDesc(None, [tensor], [pad_tensor])
+            pad.akg_name = "PadAkg"
+            pad.pad_head = [0] * len(shapes)
+            pad.pad_tail = copy.deepcopy(pad.pad_head)
+            pad.pad_tail[1] = new_shape - old_shape
+            pad.pad_value = 0
+            self.input_desc[0] = pad_tensor
+            self.output_desc[0].shape[2] = new_shape
+            
+            return [pad, self]
+        
         elif self.akg_name == "BroadcastTo":
             tensor = self.input_desc[0]
             old_shape = tensor.shape[-1]
-            new_shape = ((old_shape + 32) // 32) * 32
+            new_shape = ((old_shape + 31) // 32) * 32
             shapes = copy.deepcopy(tensor.shape)
             shapes[-1] = new_shape
             pad_tensor = TensorDesc("pad_" + tensor.tensor_name, tensor.data_type, shapes, tensor.format)
@@ -460,9 +487,25 @@ class OpDesc:
         
         elif len(self.input_desc) == 1 or self.akg_name == "Clip":
             tensor_b = self.input_desc[0]
-            assert(tensor_b.shape[-1] % 32 == 0)
-            self.output_desc[0].shape[-1] = tensor_b.shape[-1]
-            return [self]
+            if self.akg_name == "ExpandDims":
+                old_shape = tensor_b.shape[-1]
+                new_shape = ((old_shape + 32) // 32) * 32
+                shapes = copy.deepcopy(tensor_b.shape)
+                shapes[-1] = new_shape
+                pad_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+                pad = OpDesc(None, [tensor_b], [pad_tensor])
+                pad.akg_name = "PadAkg"
+                pad.pad_head = [0] * len(tensor_b.shape)
+                pad.pad_tail = [0] * len(tensor_b.shape)
+                pad.pad_tail[-1] = new_shape - old_shape
+                pad.pad_value = 0
+                self.input_desc[0] = pad_tensor
+                self.output_desc[0].shape[-1] = new_shape
+                return [pad, self]
+            else:
+                assert(tensor_b.shape[-1] % 32 == 0)
+                self.output_desc[0].shape[-1] = tensor_b.shape[-1]
+                return [self]
         
         # elementwise op
         elif len(self.input_desc) == 2:
@@ -612,19 +655,34 @@ class OpDesc:
             sym_shape = self.input_desc[0].sym_shape
             shape = self.output_desc[0].shape
             if sym_shape != None:
-                self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2], shape[3]]
+                if len(sym_shape) == 4:
+                    self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2], shape[3]]
+                elif len(sym_shape) == 3:
+                    self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2]]
+                else:
+                    raise Exception(f"Unexpected shape dimension")
         
         elif self.akg_name == "PadAkg":
             sym_shape = self.input_desc[0].sym_shape
             shape = self.output_desc[0].shape
             if sym_shape != None:
-                assert(len(sym_shape) == 4)
-                self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2], shape[3]]
+                if len(sym_shape) == 4:
+                    self.output_desc[0].sym_shape = [shape[0], sym_shape[1], sym_shape[2], shape[3]]
+                elif len(sym_shape) == 3:
+                    self.output_desc[0].sym_shape = [shape[0], sym_shape[1], shape[2]]
+                else:
+                    raise Exception(f"Unexpected shape dimension")
         
         elif self.akg_name == "BroadcastTo":
             sym_shape = self.input_desc[0].sym_shape
             if sym_shape != None:
                 raise Exception(f"Unexpected broadcast op")
+        
+        elif self.akg_name == "Concat":
+            sym_shape = self.input_desc[1].sym_shape
+            if sym_shape != None:
+                self.output_desc[0].sym_shape = copy.deepcopy(sym_shape)
+                self.output_desc[0].sym_shape[1] += 1
         
         else:
             raise Exception(f"Unexpected op {self.akg_name}")

@@ -1,6 +1,8 @@
 import json, os, sys
 from op import *
 
+propagate_pad = True
+
 def to_json(fusedop, params, filename, lineno):
     ops = fusedop.ops
     opname = "Fused_{}".format('_'.join([op.akg_name for op in ops]))
@@ -86,13 +88,23 @@ def unpad(pad_ops, old_shape, new_shape):
         unpad.unpad_tail[1] = new_shape - old_shape
         pad_ops.append(unpad)
     elif "PadAkg_PadAkg_BatchMatMul" in op_names:
-        shapes[1] = shapes[2] = old_shape
-        unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
-        unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
-        unpad = OpDesc(None, [last_tensor], [unpad_tensor])
-        unpad.akg_name = "UnPadAkgv2"
-        unpad.unpad_tail = [0] * len(shapes)
-        unpad.unpad_tail[1] = unpad.unpad_tail[2] = new_shape - old_shape
+        if propagate_pad:
+            shapes[1] = old_shape
+            unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
+            unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
+            unpad_tensor.sym_shape[2] = shapes[2]
+            unpad = OpDesc(None, [last_tensor], [unpad_tensor])
+            unpad.akg_name = "UnPadAkgv2"
+            unpad.unpad_tail = [0] * len(shapes)
+            unpad.unpad_tail[1] = new_shape - old_shape
+        else:
+            shapes[1] = shapes[2] = old_shape
+            unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
+            unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
+            unpad = OpDesc(None, [last_tensor], [unpad_tensor])
+            unpad.akg_name = "UnPadAkgv2"
+            unpad.unpad_tail = [0] * len(shapes)
+            unpad.unpad_tail[1] = unpad.unpad_tail[2] = new_shape - old_shape
         pad_ops.append(unpad)
     elif "Split" in op_names:
         unpad_ops = []
@@ -123,6 +135,7 @@ def pad(fusedop):
     ops = []
     start_idx = 1
     has_pad = False
+    op_names = "_".join([op.akg_name for op in fusedop.ops])
     if len(fusedop.ops) > 1 and fusedop.ops[1].akg_name == "BatchMatMul":
         backbone_op = fusedop.ops[1]
         start_idx += 1
@@ -138,10 +151,16 @@ def pad(fusedop):
         bmm_k = backbone_op.input_desc[0].shape[-1]
         if bmm_m % 32 != 0 or bmm_n % 32 != 0:
             
-            new_shape = ((bmm_m + 32) // 32) * 32
+            new_shape = ((bmm_m + 31) // 32) * 32
             ops += backbone_op.get_padv2()
             if bmm_k % 32 != 0:
-                ops = backbone_op.get_padv2(True)
+                if propagate_pad:
+                    fusedop.params[0].shape[2] = ((bmm_k + 31) // 32) * 32
+                    fusedop.params[0].sym_shape[2] = fusedop.params[0].shape[2]
+                    backbone_op.input_desc[0].shape[2] = ((bmm_k + 31) // 32) * 32
+                    backbone_op.input_desc[1].shape[2] = ((bmm_k + 31) // 32) * 32
+                else:
+                    ops = backbone_op.get_padv2(True)
             for op in fusedop.ops[start_idx:]:
                 if op.akg_name == "BroadcastTo":
                     ops += op.get_padv2()
@@ -149,10 +168,42 @@ def pad(fusedop):
                 else:
                     op.propagate_shape()
                     ops.append(op)
-        
             
             fusedop.ops = unpad(ops, bmm_m, new_shape)
             has_pad = True
+        
+        backbone_op.input_desc[0].sym_shape[2] = backbone_op.input_desc[0].shape[2]
+        backbone_op.input_desc[1].sym_shape[2] = backbone_op.input_desc[1].shape[2]
+    
+    elif propagate_pad and backbone_op.akg_name == "Transpose":
+        origin_shape = backbone_op.input_desc[0].shape[1]
+        if origin_shape % 32 != 0:
+            fusedop.ops = backbone_op.get_padv2()
+            has_pad = True
+        fusedop.ops[-1].output_desc[0].sym_shape[-1] = fusedop.ops[-1].output_desc[0].shape[-1]
+        
+    elif propagate_pad and backbone_op.akg_name == "ExpandDims":
+        origin_shape = backbone_op.input_desc[0].shape[1]
+        if origin_shape % 32 != 0:
+            ops = fusedop.ops[0].get_pad()
+            for op in fusedop.ops[1:]:
+                op.propagate_shape()
+                ops.append(op)
+            fusedop.ops = ops
+            has_pad = True
+        fusedop.ops[-1].output_desc[0].sym_shape = copy.deepcopy(fusedop.ops[-1].output_desc[0].shape)
+        
+    elif propagate_pad and "ReduceMax" in op_names:
+        origin_shape = fusedop.params[0].shape[-1]
+        new_shape = ((origin_shape + 31) // 32) * 32
+        fusedop.params[0].shape[-1] = new_shape
+        fusedop.params[0].sym_shape[-1] = fusedop.params[0].shape[-1]
+        if len(fusedop.params) > 2:
+            fusedop.params[2].shape[-1] = new_shape
+            fusedop.params[2].sym_shape[-1] = fusedop.params[2].shape[-1]
+        for op in fusedop.ops:
+            op.propagate_shape(is_left=True)
+        fusedop.ops[-1].output_desc[0].sym_shape[-1] = fusedop.ops[-1].output_desc[0].shape[-1]
     
     return fusedop, has_pad
 
@@ -165,14 +216,10 @@ def load_and_instantiate(graphname):
                     fusedop = FusedOpDesc.load_json(json_obj, symbolic_shape, symbolic_map)
                     has_pad = False
                     
-                    fused_op_pattern = re.compile(r'Fused_(BroadcastTo_)*BatchMatMul')
+                    fused_op_pattern = re.compile(r'Fused_BatchMatMul|Fused_Transpose|ReduceMax|ExpandDims')
                     op_matches = fused_op_pattern.findall(filename)
                     if len(op_matches) > 0:
                         fusedop, has_pad = pad(fusedop)
-                    
-                    if "BatchMatMul_Reshape_Div_BroadcastTo_ResidualAdd_Cast" in json_obj["op"] and has_pad:
-                        ops = fusedop.ops
-                        fusedop.ops = ops[:3] + ops[5:7] + ops[3:5] + ops[7:]
                     
                     origin_op = json_obj["op"]
                     json_obj, _ = to_json(fusedop, fusedop.params, json_obj["filename"], json_obj["lineno"])

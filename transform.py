@@ -61,6 +61,7 @@ def resimplify(fusedops):
             fusedop.params[0].shape = new_ops[0].input_desc[1].shape
             new_ops[0].input_desc[1] = fusedop.params[0]
             fusedop.ops = new_ops
+            fusedop.backbone_op = new_ops[0]
         elif len(fusedop.ops) == 1 and fusedop.ops[0].akg_name == "PadAkg":
             fusedop.is_skip = True
         elif len(fusedop.ops) == 2 and fusedop.ops[0].akg_name == "Relu" and fusedop.ops[1].akg_name == "PadAkg":
@@ -218,6 +219,21 @@ def canonical_simplify(fusedops):
                 ops[-1].output_desc[0].sym_shape = copy.deepcopy(ops[-1].input_desc[0].sym_shape)
                 fusedop.ops = ops[:-2] + [ops[-1]]
     return fusedops
+
+def split_ops(fusedops):
+    ops = []
+    for fusedop in fusedops:
+        op_names = "_".join([op.akg_name for op in fusedop.ops])
+        if "Add_Rsqrt_Mul_Mul_Add_Gather_Cast" in op_names:
+            op_list = fusedop.ops[-2:]
+            fusedop.ops = fusedop.ops[:-2]
+            ops.append(fusedop)
+            gather_op = FusedOpDesc(fusedop.id, op_list, [op_list[0].input_desc[0]], False, False)
+            gather_op.lineno = fusedop.lineno
+            ops.append(gather_op)
+        else:
+            ops.append(fusedop)
+    return ops
 
 # broadcast some tensor, e.g., predicate tensor in select
 def broadcast_ops(fusedops):
@@ -542,11 +558,9 @@ for filename in os.listdir(dirpath):
         # list of fusedops(id, inputs, output, desc, ops), map(id: fuesd_op)
         global_ops = eliminate_zero_ops_and_pad_prop(global_ops, op_dict, graphtensors)
         if "bert" in filename:
-            global_ops = fuse_matmul_for_albert(global_ops, op_dict, graphtensors)
-        # elif "bert" in filename:
-        #     global_ops = fuse_matmul_for_bert(global_ops, op_dict, graphtensors)
-        elif "gpt" in filename:
-            global_ops = fuse_matmul_for_gpt(global_ops, op_dict, graphtensors)
+            global_ops = fuse_matmul_for_bert(global_ops, op_dict, graphtensors)
+        elif "vit" in filename:
+            global_ops = fuse_matmul_for_vit(global_ops, op_dict, graphtensors)
         global_ops = prelogue_fuse(global_ops, op_dict, graphtensors)
         global_ops = resimplify(global_ops)
         global_ops = epilogue_fuse(global_ops, op_dict, graphtensors)
@@ -560,6 +574,7 @@ for filename in os.listdir(dirpath):
             global_ops = broadcast_ops(global_ops)
         global_ops = fuse_reduce_ops(global_ops)
         global_ops = canonical_simplify(global_ops)
+        global_ops = split_ops(global_ops)
         print("unsupported ops: ", unparsedOps)
         
         op_hashset = {}
