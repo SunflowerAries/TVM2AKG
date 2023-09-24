@@ -203,10 +203,7 @@ def canonical_simplify(fusedops):
                     fusedop.params[i].tensor_name = "input_0"
                 else:
                     raise Exception(f"Unexpected fusedop {op_names}")
-        if op_names == "Gather_Cast" and len(fusedop.params) == 1:
-            fusedop.params.append(fusedop.ops[0].input_desc[1])
-            fusedop.ops[0].input_desc[1].value = None
-        elif "Reshape_Div_Add" in op_names:
+        if "Reshape_Div_Add" in op_names:
             fusedop.params[0] = fusedop.ops[1].input_desc[0]
             fusedop.params[0].tensor_name = "input_0"
             fusedop.ops = fusedop.ops[1:]
@@ -218,6 +215,21 @@ def canonical_simplify(fusedops):
                 ops[-1].output_desc[0].shape = copy.deepcopy(ops[-1].input_desc[0].shape)
                 ops[-1].output_desc[0].sym_shape = copy.deepcopy(ops[-1].input_desc[0].sym_shape)
                 fusedop.ops = ops[:-2] + [ops[-1]]
+        
+        elif "ExpandDims" in op_names:
+            ops = fusedop.ops
+            ops[2].input_desc[0].tensor_name = "input_0"
+            fusedop.params[0] = ops[2].input_desc[0]
+            fusedop.ops = ops[2:]
+            for op in fusedop.ops:
+                for i, tensor in enumerate(op.input_desc):
+                    if len(tensor.shape) == 4:
+                        shapes = op.input_desc[i].shape
+                        sym_shapes = op.input_desc[i].sym_shape
+                        op.input_desc[i].shape = [shapes[0], shapes[3]]
+                        op.input_desc[i].sym_shape = [sym_shapes[0], sym_shapes[3]]
+                op.output_desc[0].shape = [shapes[0], shapes[3]]
+                op.output_desc[0].sym_shape = [sym_shapes[0], sym_shapes[3]]
     return fusedops
 
 def split_ops(fusedops):
@@ -228,8 +240,10 @@ def split_ops(fusedops):
             op_list = fusedop.ops[-2:]
             fusedop.ops = fusedop.ops[:-2]
             ops.append(fusedop)
+            op_list[0].input_desc[0] = copy.deepcopy(op_list[0].input_desc[0])
             gather_op = FusedOpDesc(fusedop.id, op_list, [op_list[0].input_desc[0]], False, False)
             gather_op.lineno = fusedop.lineno
+            gather_op.params[0].tensor_name = "input_0"
             ops.append(gather_op)
         else:
             ops.append(fusedop)

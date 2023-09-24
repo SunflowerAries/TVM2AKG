@@ -963,7 +963,7 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
         if fusedop.backbone_op.akg_name in ["Pool2D", "ReduceMax", "ReduceSum"]:
             prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
             if len(prelogue_op.desc) == 1 and prelogue_op.ops[-1].akg_name == "Cast":
-                if fusedop.backbone_op.akg_name == "ReduceMax" and len(prelogue_op.ops) > 1 and prelogue_op.ops[-2].akg_name in ["Add", "Div"]:
+                if fusedop.backbone_op.akg_name == "ReduceMax" and len(prelogue_op.ops) > 1 and prelogue_op.ops[-2].akg_name == "Div":
                     
                     cast_op = prelogue_op.ops[-1]
                     output_cnt = int(cast_op.output_desc[0].tensor_name.split('_')[-1]) + 1

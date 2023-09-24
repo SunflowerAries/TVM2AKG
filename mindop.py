@@ -276,16 +276,21 @@ class MindOpDesc:
                         self.statements.append(Statement(cnt, output_tensor["shape"], "Split", has_pad))
                         cnt += 1
                     break
-                
+        
+        elif self.backbone == "Transpose":
+            transpose_op = json_obj["op_desc"][0]
+            output_tensor = transpose_op["output_desc"][0]["shape"]
+            self.statements.append(Statement(cnt, output_tensor, "Pad", True))
+            cnt += 1
+            self.statements.append(Statement(cnt, output_tensor, "Transpose", True))
+            cnt += 1
+        
         elif self.backbone == "Reduce":
             reduce_max_idx = json_obj["op"].find("ReduceMax")
             reduce_sum_idx = json_obj["op"].find("ReduceSum")
             has_epilogue = json_obj["op"].split("_")[-2] not in ["ReduceMax", "ReduceSum"]
             init_axes = [1]
             other_axes = [1, 1]
-            if reduce_max_idx != -1:
-                init_axes.append(1)
-                other_axes.append(1)
             if reduce_sum_idx > 6 or reduce_max_idx > 6:
                 self.statements.append(Statement(cnt, other_axes, "Elem", is_reduce=True, group=0))
                 cnt += 1

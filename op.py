@@ -91,6 +91,13 @@ class FusedOpDesc:
             for i, tensor in enumerate(op.input_desc):
                 if tensor.tensor_name in tensor_map:
                     op.input_desc[i] = tensor_map[tensor.tensor_name]
+            if op.akg_name == "LayoutTransform":
+                _, _, h, w = op.input_desc[0].shape
+                op.input_desc[0].shape[2:] = [h - 1, w - 1]
+                op.input_desc[0].sym_shape[2:] = symbolic_shape
+                op.output_desc[0].shape[1:3] = [h - 1, w - 1]
+                op.output_desc[0].sym_shape[1:3] = symbolic_shape
+                    
         fusedop = cls(None, ops, params, False, False)
         for op in ops:
             if op.akg_name in ["Conv2D", "MatMul", "BatchMatMul", "ReduceSum", "ReduceMax", "Pool2D", "Transpose"]:
@@ -298,10 +305,25 @@ class OpDesc:
             for i, s in enumerate(self.input_desc[0].shape):
                 self.output_desc[0].shape[i] = s
     
-    def get_padv2(self, pad_k=False):
+    def get_padv2(self, pad_k=False, propagate_pad=False):
         if self.akg_name == "BatchMatMul":
             tensor_a = self.input_desc[0]
             tensor_b = self.input_desc[1]
+            if propagate_pad:
+                ops = []
+                ops.append(tensor_a.op)
+                pad_b_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, copy.deepcopy(tensor_b.shape), tensor_b.format)
+                pad_b_tensor.sym_shape = copy.deepcopy(tensor_b.sym_shape)
+                pad_b = OpDesc(None, [tensor_b], [pad_b_tensor])
+                pad_b.akg_name = "PadAkg"
+                pad_b.pad_head = [0, 0, 0]
+                pad_b.pad_tail = [0, 0, 0]
+                pad_b.pad_value = 0
+                self.input_desc[1] = pad_b_tensor
+                ops.append(pad_b)
+                ops.append(self)
+                return ops
+            
             if pad_k:
                 assert(tensor_a.tensor_name.find("pad_") != -1 and tensor_b.tensor_name.find("pad_") == -1)
                 old_shape = tensor_a.shape[2]
@@ -321,6 +343,7 @@ class OpDesc:
                     shapes = copy.deepcopy(tensor_b.shape)
                     shapes[n_idx] = new_shape
                     pad_b_tensor = TensorDesc("pad_" + tensor_b.tensor_name, tensor_b.data_type, shapes, tensor_b.format)
+                    pad_b_tensor.sym_shape = copy.deepcopy(tensor_b.sym_shape)
                     pad_b = OpDesc(None, [tensor_b], [pad_b_tensor])
                     pad_b.akg_name = "PadAkg"
                     pad_b.pad_head = [0, 0, 0]
@@ -393,6 +416,25 @@ class OpDesc:
             
             return [pad, self]
         
+        elif self.akg_name == "LayoutTransform":
+            tensor = self.input_desc[0]
+            old_h_shape, old_w_shape = tensor.shape[2:]
+            new_h_shape = ((old_h_shape + 31) // 32) * 32
+            new_w_shape = ((old_w_shape + 31) // 32) * 32
+            shapes = copy.deepcopy(tensor.shape)
+            shapes[2:] = [new_h_shape, new_w_shape]
+            pad_tensor = TensorDesc("pad_" + tensor.tensor_name, tensor.data_type, shapes, tensor.format)
+            pad = OpDesc(None, [tensor], [pad_tensor])
+            pad.akg_name = "PadAkg"
+            pad.pad_head = [0] * len(shapes)
+            pad.pad_tail = copy.deepcopy(pad.pad_head)
+            pad.pad_tail[2:] = [new_h_shape - old_h_shape, new_w_shape - old_w_shape]
+            pad.pad_value = 0
+            self.input_desc[0] = pad_tensor
+            self.output_desc[0].shape[1:3] = [new_h_shape, new_w_shape]
+            
+            return [pad, self]
+        
         elif self.akg_name == "BroadcastTo":
             tensor = self.input_desc[0]
             old_shape = tensor.shape[-1]
@@ -411,7 +453,24 @@ class OpDesc:
             
             return [pad, self]
     
-    def get_pad(self, pad_k=False):
+    def get_pad(self, pad_k=False, is_post=False):
+        if is_post:
+            if len(self.input_desc) == 2:
+                tensor_c = self.output_desc[0]
+                assert(tensor_c.shape[-1] % 32 != 0)
+                
+                old_shape = tensor_c.shape[-1]
+                new_shape = ((old_shape + 32) // 32) * 32
+                shapes = copy.deepcopy(tensor_c.shape)
+                shapes[-1] = new_shape
+                pad_tensor = TensorDesc("pad_" + tensor_c.tensor_name, tensor_c.data_type, shapes, tensor_c.format)
+                pad = OpDesc(None, [tensor_c], [pad_tensor])
+                pad.akg_name = "PadAkg"
+                pad.pad_head = [0] * len(shapes)
+                pad.pad_tail = [0] * len(shapes)
+                pad.pad_tail[-1] = new_shape - old_shape
+                pad.pad_value = -65504
+                return [self, pad]
         if self.akg_name in ["Conv2D", "MatMul"]:
             if pad_k:
                 tensor_a = self.input_desc[0]

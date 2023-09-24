@@ -56,6 +56,8 @@ def to_json(fusedop, params, filename, lineno):
     if has_symbolic_var:
         json_obj["pragma_enable_micro_kernel_code"] = True
         json_obj["symbolic_var"] = [(var, symbolic_map[var]) for var in symbolic_shape]
+        if "LayoutTransform" in opname:
+            json_obj["symbolic_var"] = [(symbolic_shape[0], params[0].shape[2]), (symbolic_shape[1], params[0].shape[3])]
     
     if len(re.findall("ReduceSum|ReduceMax", opname)) == 2:
         json_obj["enable_softmax_fusion"] = True
@@ -88,23 +90,34 @@ def unpad(pad_ops, old_shape, new_shape):
         unpad.unpad_tail[1] = new_shape - old_shape
         pad_ops.append(unpad)
     elif "PadAkg_PadAkg_BatchMatMul" in op_names:
+        if "BroadcastTo" in op_names:
+            reshape_shapes = [shapes[0] * shapes[1], shapes[2], shapes[3]]
+            reshape_tensor = TensorDesc("reshape_" + last_tensor.tensor_name, last_tensor.data_type, reshape_shapes, last_tensor.format)
+            reshape_tensor.sym_shape = [last_tensor.sym_shape[0] * last_tensor.sym_shape[1], last_tensor.sym_shape[2], last_tensor.sym_shape[3]]
+            reshape_op = OpDesc(None, [last_tensor], [reshape_tensor])
+            reshape_op.akg_name = "Reshape"
+            reshape_op.shape = reshape_shapes
+            last_tensor = reshape_tensor
+            shapes = copy.deepcopy(last_tensor.shape)
+            pad_ops.append(reshape_op)
+        
         if propagate_pad:
-            shapes[1] = old_shape
+            shapes[-2] = old_shape
             unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
             unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
-            unpad_tensor.sym_shape[2] = shapes[2]
+            unpad_tensor.sym_shape[-1] = shapes[-1]
             unpad = OpDesc(None, [last_tensor], [unpad_tensor])
             unpad.akg_name = "UnPadAkgv2"
             unpad.unpad_tail = [0] * len(shapes)
-            unpad.unpad_tail[1] = new_shape - old_shape
+            unpad.unpad_tail[-2] = new_shape - old_shape
         else:
-            shapes[1] = shapes[2] = old_shape
+            shapes[-1] = shapes[-2] = old_shape
             unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
             unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
             unpad = OpDesc(None, [last_tensor], [unpad_tensor])
             unpad.akg_name = "UnPadAkgv2"
             unpad.unpad_tail = [0] * len(shapes)
-            unpad.unpad_tail[1] = unpad.unpad_tail[2] = new_shape - old_shape
+            unpad.unpad_tail[-1] = unpad.unpad_tail[-2] = new_shape - old_shape
         pad_ops.append(unpad)
     elif "Split" in op_names:
         unpad_ops = []
@@ -156,14 +169,18 @@ def pad(fusedop):
             if bmm_k % 32 != 0:
                 if propagate_pad:
                     fusedop.params[0].shape[2] = ((bmm_k + 31) // 32) * 32
-                    fusedop.params[0].sym_shape[2] = fusedop.params[0].shape[2]
+                    fusedop.params[1].shape[2] = ((bmm_k + 31) // 32) * 32
+                    fusedop.params[0].sym_shape[2] = ((bmm_k + 31) // 32) * 32
+                    fusedop.params[1].sym_shape[2] = ((bmm_k + 31) // 32) * 32
                     backbone_op.input_desc[0].shape[2] = ((bmm_k + 31) // 32) * 32
-                    backbone_op.input_desc[1].shape[2] = ((bmm_k + 31) // 32) * 32
+                    ops = backbone_op.get_padv2(propagate_pad=True)
                 else:
-                    ops = backbone_op.get_padv2(True)
+                    ops = backbone_op.get_padv2(pad_k=True)
             for op in fusedop.ops[start_idx:]:
                 if op.akg_name == "BroadcastTo":
-                    ops += op.get_padv2()
+                    op.input_desc[0].shape[-1] = ((bmm_n + 31) // 32) * 32
+                    op.input_desc[0].sym_shape[-1] = ((bmm_n + 31) // 32) * 32
+                    ops.append(op)
                     op.propagate_shape()
                 else:
                     op.propagate_shape()
@@ -182,13 +199,19 @@ def pad(fusedop):
             has_pad = True
         fusedop.ops[-1].output_desc[0].sym_shape[-1] = fusedop.ops[-1].output_desc[0].shape[-1]
         
-    elif propagate_pad and backbone_op.akg_name == "ExpandDims":
-        origin_shape = backbone_op.input_desc[0].shape[1]
+    elif propagate_pad and backbone_op.akg_name == "LayoutTransform":
+        fusedop.ops = backbone_op.get_padv2()
+        has_pad = True
+        fusedop.ops[-1].output_desc[0].sym_shape = fusedop.ops[-1].output_desc[0].shape
+        
+    elif propagate_pad and op_names == "Cast_Sub_Mul":
+        origin_shape = backbone_op.input_desc[0].shape[-1]
         if origin_shape % 32 != 0:
-            ops = fusedop.ops[0].get_pad()
-            for op in fusedop.ops[1:]:
-                op.propagate_shape()
-                ops.append(op)
+            for op in fusedop.ops:
+                if op == fusedop.ops[-1]:
+                    ops += op.get_pad(is_post=True)
+                else:
+                    ops.append(op)
             fusedop.ops = ops
             has_pad = True
         fusedop.ops[-1].output_desc[0].sym_shape = copy.deepcopy(fusedop.ops[-1].output_desc[0].shape)
@@ -216,7 +239,7 @@ def load_and_instantiate(graphname):
                     fusedop = FusedOpDesc.load_json(json_obj, symbolic_shape, symbolic_map)
                     has_pad = False
                     
-                    fused_op_pattern = re.compile(r'Fused_BatchMatMul|Fused_Transpose|ReduceMax|ExpandDims')
+                    fused_op_pattern = re.compile(r'Fused_BatchMatMul|Fused_Transpose|Fused_LayoutTransform|ReduceMax|Cast_Sub_Mul')
                     op_matches = fused_op_pattern.findall(filename)
                     if len(op_matches) > 0:
                         fusedop, has_pad = pad(fusedop)
