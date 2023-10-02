@@ -1,4 +1,4 @@
-import copy
+import copy, re
 
 class Statement:
     def __init__(self, cnt, axes, kind, has_pad=False, has_unpad=False, has_transpose=False, is_special=False, is_reduce=False, group=None):
@@ -201,7 +201,7 @@ class MindOpDesc:
                     cnt += 1
                     break
             
-            if "MatMul_Add_Split_Reshape_Reshape_Reshape_Transpose_Transpose_Transpose" in json_obj["op"]:
+            if "Split" in json_obj["op"]:
                 split_op = next(filter(lambda op : op["name"] == "Split", json_obj["op_desc"]))
                 transpose_op = next(filter(lambda op : op["name"] == "Transpose", json_obj["op_desc"]))
                 transpose_shape = transpose_op["output_desc"][0]["shape"]
@@ -252,7 +252,7 @@ class MindOpDesc:
                 elif op["name"] == "Transpose":
                     break
             
-            if "BatchMatMul_Add_Split_Reshape_Reshape_Reshape_Transpose_Transpose_Transpose" in json_obj["op"]:
+            if "Split" in json_obj["op"]:
                 split_op = next(filter(lambda op : op["name"] == "Split", json_obj["op_desc"]))
                 transpose_op = next(filter(lambda op : op["name"] == "Transpose", json_obj["op_desc"]))
                 transpose_shape = transpose_op["output_desc"][0]["shape"]
@@ -300,6 +300,9 @@ class MindOpDesc:
             cnt += 1
             self.statements.append(Statement(cnt, other_axes, "Elem", is_reduce=True, group=1))
             cnt += 1
+            if len(re.findall("ReduceSum", json_obj["op"])) == 2:
+                self.statements.append(Statement(cnt, other_axes, "Elem", is_reduce=True, group=1))
+                cnt += 1
             self.statements.append(Statement(cnt, init_axes, "Init", is_reduce=True, group=1))
             cnt += 1
             self.statements.append(Statement(cnt, other_axes, "Reduce", is_reduce=True, group=1))

@@ -21,6 +21,12 @@ onnx2akg = {
     "split": "Split",
     "nn.max_pool2d": "Pool2D",
     "broadcast_to": "BroadcastTo",
+    "repeat": "BroadcastTo",
+    "sin": "Sin",
+    "cos": "Cos",
+    "logical_not": "LogicalNot",
+    "strided_slice": "StridedSlice",
+    "cumsum": "CumSum",
     # "image.resize2d": "Resize",
     "rsqrt": "Rsqrt",
     "nn.avg_pool2d": "Pool2D",
@@ -80,6 +86,8 @@ class FusedOpDesc:
         for op in ops:
             if op.akg_name in ["Reshape", "BroadcastTo"]:
                 op.shape = op.output_desc[0].shape
+            elif op.akg_name == "StridedSlice":
+                op.end = op.input_desc[0].shape
             for tensor in op.input_desc:
                 if tensor.tensor_name.find("input") == 0 and tensor.tensor_name not in tensor_map and tensor.value == None:
                     params.append(tensor)
@@ -131,11 +139,6 @@ class OpDesc:
             for attr in json_obj["attr"]:
                 if attr["name"] == "perm":
                     op.axes = attr["value"]
-            
-        elif json_obj["name"] == "ExpandDims":
-            for attr in json_obj["attr"]:
-                if attr["name"] == "axis":
-                    op.axis = attr["value"]
         
         elif json_obj["name"] in ["ReduceSum", "ReduceMax"]:
             for attr in json_obj["attr"]:
@@ -158,15 +161,19 @@ class OpDesc:
                 if attr["name"] == "tail":
                     op.unpad_tail = attr["value"]
         
-        elif json_obj["name"] == "Concat":
+        elif json_obj["name"] in ["Concat", "Split", "CumSum", "ExpandDims"]:
             for attr in json_obj["attr"]:
                 if attr["name"] == "axis":
                     op.axis = attr["value"]
-            
-        elif json_obj["name"] == "Split":
+                    
+        elif json_obj["name"] == "StridedSlice":
             for attr in json_obj["attr"]:
-                if attr["name"] == "axis":
-                    op.axis = attr["value"]
+                if attr["name"] == "begin":
+                    op.begin = attr["value"]
+                elif attr["name"] == "end":
+                    op.end = attr["value"]
+                elif attr["name"] == "strides":
+                    op.strides = attr["value"]
         
         elif json_obj["name"] == "Pool2D":
             for attr in json_obj["attr"]:
@@ -273,7 +280,12 @@ class OpDesc:
     
     def propagate_shape(self, is_left = False):
         if self.akg_name == "Reshape":
-            if self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
+            if len(self.output_desc[0].shape) == 2 and len(self.input_desc[0].shape) == 3:
+                if self.output_desc[0].shape[-1] == self.input_desc[0].shape[-1]:
+                    self.output_desc[0].shape[0] = self.input_desc[0].shape[0] * self.input_desc[0].shape[1]
+                else:
+                    self.output_desc[0].shape[0] = self.input_desc[0].shape[0] * self.input_desc[0].shape[1] * self.input_desc[0].shape[2] // self.output_desc[0].shape[1]
+            elif self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
                 self.output_desc[0].shape[1] = self.input_desc[0].shape[1]
             elif self.output_desc[0].shape[2] == self.output_desc[0].shape[3]:
                 self.output_desc[0].shape[2] = self.output_desc[0].shape[3] = self.input_desc[0].shape[2]
@@ -284,8 +296,16 @@ class OpDesc:
             self.output_desc[0].shape[1] = self.output_desc[1].shape[1] = self.output_desc[2].shape[1] = self.input_desc[0].shape[1]
         
         elif self.akg_name == "Transpose":
-            self.output_desc[0].shape[1] = self.input_desc[0].shape[2]
-            self.output_desc[0].shape[2] = self.input_desc[0].shape[1]
+            if self.axes == [1, 0, 2]:
+                self.output_desc[0].shape[0] = self.input_desc[0].shape[1]
+                self.output_desc[0].shape[1] = self.input_desc[0].shape[0]
+            elif self.axes == [1, 2, 0]:
+                self.output_desc[0].shape[0] = self.input_desc[0].shape[1]
+                self.output_desc[0].shape[1] = self.input_desc[0].shape[2]
+                self.output_desc[0].shape[2] = self.input_desc[0].shape[0]
+            else:
+                self.output_desc[0].shape[1] = self.input_desc[0].shape[2]
+                self.output_desc[0].shape[2] = self.input_desc[0].shape[1]
         
         elif self.akg_name in ["Div", "Add", "Mul", "Sub"]:
             if len(self.input_desc[0].shape) > len(self.input_desc[1].shape) or is_left:
@@ -296,12 +316,17 @@ class OpDesc:
                     self.output_desc[0].shape[i] = s
                     
         elif self.akg_name == "BroadcastTo":
-            self.output_desc[0].shape[2] = self.output_desc[0].shape[3] = self.input_desc[0].shape[-1]
+            if len(self.output_desc[0].shape) == 4:
+                self.output_desc[0].shape[-2] = self.output_desc[0].shape[-1] = self.input_desc[0].shape[-1]
+            else:
+                assert(len(self.output_desc[0].shape) == 3)
+                self.output_desc[0].shape[-1] = self.input_desc[0].shape[-1]
+                self.output_desc[0].shape[-2] = (self.output_desc[0].shape[-2] + 31) // 32 * 32
 
         elif self.akg_name == "ExpandDims":
             self.output_desc[0].shape[-1] = self.input_desc[0].shape[-1]
         
-        elif self.akg_name in ["Cast", "Erf", "Exp"]:
+        elif self.akg_name in ["Cast", "Erf", "Exp", "Sin", "Cos", "LogicalNot"]:
             for i, s in enumerate(self.input_desc[0].shape):
                 self.output_desc[0].shape[i] = s
     
@@ -400,19 +425,19 @@ class OpDesc:
         
         elif self.akg_name == "Transpose":
             tensor = self.input_desc[0]
-            old_shape = tensor.shape[1]
+            old_shape = tensor.shape[self.axes[-1]]
             new_shape = ((old_shape + 31) // 32) * 32
             shapes = copy.deepcopy(tensor.shape)
-            shapes[1] = new_shape
+            shapes[self.axes[-1]] = new_shape
             pad_tensor = TensorDesc("pad_" + tensor.tensor_name, tensor.data_type, shapes, tensor.format)
             pad = OpDesc(None, [tensor], [pad_tensor])
             pad.akg_name = "PadAkg"
             pad.pad_head = [0] * len(shapes)
             pad.pad_tail = copy.deepcopy(pad.pad_head)
-            pad.pad_tail[1] = new_shape - old_shape
+            pad.pad_tail[self.axes[-1]] = new_shape - old_shape
             pad.pad_value = 0
             self.input_desc[0] = pad_tensor
-            self.output_desc[0].shape[2] = new_shape
+            self.output_desc[0].shape[-1] = new_shape
             
             return [pad, self]
         
@@ -604,7 +629,7 @@ class OpDesc:
             print("unknown paddedop:\n",  self.akg_name)
     
     def compute_shape(self):
-        if self.akg_name in ["Cast", "Relu", "Erf", "Rsqrt", "Neg", "Exp", "Pow", "Clip", "Tanh"]:
+        if self.akg_name in ["Cast", "Sin", "Cos", "LogicalNot", "CumSum", "Relu", "Erf", "Rsqrt", "Neg", "Exp", "Pow", "Clip", "Tanh"]:
             self.output_desc[0].sym_shape = copy.deepcopy(self.input_desc[0].sym_shape)
         
         elif self.akg_name in ["Add", "Mul", "Div", "Sub", "Less"]:
@@ -620,24 +645,26 @@ class OpDesc:
                 if self.transpose_b:
                     self.output_desc[0].sym_shape = [self.output_desc[0].shape[0], sym_shape0[1], sym_shape1[1]]
                 else:
-                    self.output_desc[0].sym_shape = [self.output_desc[0].shape[0], sym_shape0[1], sym_shape1[2]]
+                    if isinstance(sym_shape0[0], int) != True:
+                        self.output_desc[0].sym_shape = [sym_shape0[0], sym_shape0[1], sym_shape1[2]]
+                    else:
+                        self.output_desc[0].sym_shape = [self.output_desc[0].shape[0], sym_shape0[1], sym_shape1[2]]
             
         elif self.akg_name in ["ReduceMax", "ReduceSum"]:
             sym_shape = self.input_desc[0].sym_shape
             shape = self.output_desc[0].shape
             if sym_shape != None:
                 if len(shape) == 3:
-                    self.output_desc[0].sym_shape = [shape[0], sym_shape[1], shape[2]]
+                    self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[1], shape[2]]
                 elif len(shape) == 4:
-                    self.output_desc[0].sym_shape = [shape[0], shape[1], sym_shape[2], shape[3]]
+                    self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[1], sym_shape[2], shape[3]]
             
         elif self.akg_name == "Split":
             sym_shape = self.input_desc[0].sym_shape
             shape = self.output_desc[0].shape
             if sym_shape != None:
-                self.output_desc[0].sym_shape = sym_shape[:-1] + [shape[-1]]
-                self.output_desc[1].sym_shape = sym_shape[:-1] + [shape[-1]]
-                self.output_desc[2].sym_shape = sym_shape[:-1] + [shape[-1]]
+                for i in range(len(self.output_desc)):
+                    self.output_desc[i].sym_shape = sym_shape[:-1] + [shape[-1]]
             
         elif self.akg_name == "Reshape":
             input_shape = self.input_desc[0].shape
@@ -646,20 +673,60 @@ class OpDesc:
             if sym_shape != None:
                 if len(input_shape) < len(shape):
                     if isinstance(sym_shape[0], int):
-                        assert(len(input_shape) == 3 and len(shape) == 4)
-                        if self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
-                            assert(shape[2] == 16 and shape[3] == 64)
-                            self.output_desc[0].sym_shape = [32, sym_shape[1], shape[2], shape[3]]
-                        else:
-                            self.output_desc[0].sym_shape = [32, sym_shape[0] // 32, sym_shape[1], sym_shape[2]]
+                        if len(shape) == 4:
+                            if len(input_shape) == 3:
+                                if self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
+                                    assert(shape[2] == 16 and shape[3] == 64)
+                                    self.output_desc[0].sym_shape = [32, sym_shape[1], shape[2], shape[3]]
+                                else:
+                                    self.output_desc[0].sym_shape = [32, sym_shape[0] // 32, sym_shape[1], sym_shape[2]]
+                            elif len(input_shape) == 2:
+                                self.output_desc[0].sym_shape = [sym_shape[0], 1, 1, sym_shape[1]]
+                        elif len(shape) == 3:
+                            if len(input_shape) == 2:
+                                # TODO
+                                self.output_desc[0].sym_shape = [sym_shape[0] // 32, 32, sym_shape[1]]
                     else:
                         assert(len(input_shape) == 2)
                         if len(shape) == 3:
-                            self.output_desc[0].sym_shape = [32, ana.simplify(sym_shape[0] // 32), sym_shape[1]]
+                            if self.output_desc[0].shape[0] == 32:
+                                self.output_desc[0].sym_shape = [32, ana.simplify(sym_shape[0] // 32), sym_shape[1]]
+                            else:
+                                self.output_desc[0].sym_shape = [ana.simplify(sym_shape[0] // 32), 32, sym_shape[1]]
                         elif len(shape) == 4:
                             self.output_desc[0].sym_shape = [32, ana.simplify(sym_shape[0] // 32), sym_shape[1] // 64, 64]
+                elif len(input_shape) == len(shape):
+                    if self.shape[-1] == 1:
+                        if len(self.shape) == 4:
+                            self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[1], sym_shape[2] * sym_shape[3], 1]
+                        elif len(self.shape) == 3:
+                            self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[1] * sym_shape[2], 1]
+                        elif len(self.shape) == 5:
+                            self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[1], sym_shape[2], sym_shape[3] * sym_shape[4], 1]
+                    else:
+                        if self.output_desc[0].shape != self.input_desc[0].shape:
+                            if len(self.shape) == 3:
+                                self.output_desc[0].sym_shape = copy.deepcopy(sym_shape)
+                                self.output_desc[0].sym_shape[1:] = shape[1:]
+                        else:
+                            self.output_desc[0].sym_shape = copy.deepcopy(sym_shape)
                 else:
-                    self.output_desc[0].sym_shape = [ana.simplify(sym_shape[0] * sym_shape[1])] + sym_shape[2:]
+                    if input_shape[-1] == 1 and shape[-1] != 1:
+                        if len(shape) == 3:
+                            self.output_desc[0].sym_shape = copy.deepcopy(sym_shape[:3])
+                        elif len(shape) == 4:
+                            self.output_desc[0].sym_shape = copy.deepcopy(sym_shape[:4])
+                        else:
+                            self.output_desc[0].sym_shape = copy.deepcopy(sym_shape[:2])
+                    else:
+                        if self.output_desc[0].shape[0] == self.input_desc[0].shape[0]:
+                            self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[1] * sym_shape[2]] + sym_shape[3:]
+                        else:
+                            if self.output_desc[0].shape[-1] == self.input_desc[0].shape[-1]:
+                                self.output_desc[0].sym_shape = [ana.simplify(sym_shape[0] * sym_shape[1])] + sym_shape[2:]
+                            else:
+                                assert(sym_shape[-1] == 32 and self.output_desc[0].shape[-1] == 256)
+                                self.output_desc[0].sym_shape = [ana.simplify(sym_shape[0] * sym_shape[-1]), sym_shape[1]]
             
         elif self.akg_name == "Transpose":
             sym_shape = self.input_desc[0].sym_shape
@@ -668,10 +735,17 @@ class OpDesc:
                     self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[2], sym_shape[1], sym_shape[3]]
                 elif self.axes == [0, 2, 1]:
                     self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[2], sym_shape[1]]
+                elif self.axes == [1, 0, 2]:
+                    self.output_desc[0].sym_shape = [sym_shape[1], sym_shape[0], sym_shape[2]]
+                elif self.axes == [1, 2, 0]:
+                    self.output_desc[0].sym_shape = [sym_shape[1], sym_shape[2], sym_shape[0]]
             
         elif self.akg_name == "LayoutTransform":
             sym_shape = self.input_desc[0].sym_shape
-            self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[2], sym_shape[3], sym_shape[1]]
+            if self.src_format == "NCHW":
+                self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[2], sym_shape[3], sym_shape[1]]
+            else:
+                self.output_desc[0].sym_shape = [sym_shape[0], sym_shape[3], sym_shape[1], sym_shape[2]]
             
         elif self.akg_name == "Pool2D":
             if self.is_global != True:
@@ -690,8 +764,7 @@ class OpDesc:
             sym_shape = self.input_desc[0].sym_shape
             shape = self.output_desc[0].shape
             if sym_shape != None:
-                self.output_desc[0].sym_shape = copy.deepcopy(shape)
-                self.output_desc[0].sym_shape[-1] = sym_shape[-1]
+                self.output_desc[0].sym_shape = sym_shape[:self.axis] + [1] + sym_shape[self.axis:]
             
         elif self.akg_name == "Gather":
             sym_shape = self.input_desc[1].sym_shape
@@ -735,13 +808,33 @@ class OpDesc:
         elif self.akg_name == "BroadcastTo":
             sym_shape = self.input_desc[0].sym_shape
             if sym_shape != None:
-                raise Exception(f"Unexpected broadcast op")
+                self.output_desc[0].sym_shape = copy.deepcopy(self.output_desc[0].shape)
+                for i, sym_s in enumerate(sym_shape):
+                    if isinstance(sym_s, int) != True:
+                        self.output_desc[0].sym_shape[i] = sym_s
         
         elif self.akg_name == "Concat":
             sym_shape = self.input_desc[1].sym_shape
             if sym_shape != None:
                 self.output_desc[0].sym_shape = copy.deepcopy(sym_shape)
-                self.output_desc[0].sym_shape[1] += 1
+                self.output_desc[0].sym_shape[self.axis] = 0
+                for input in self.input_desc:
+                    tmp_sym_shape = input.sym_shape if input.sym_shape is not None else input.shape
+                    self.output_desc[0].sym_shape[self.axis] += tmp_sym_shape[self.axis]
+                
+        elif self.akg_name == "StridedSlice":
+            sym_shape = self.input_desc[0].sym_shape
+            if sym_shape != None:
+                if len(sym_shape) == 3:
+                    if self.begin[-1] == -1:
+                        self.output_desc[0].sym_shape = copy.deepcopy(sym_shape)
+                        self.output_desc[0].sym_shape[-1] = self.output_desc[0].shape[-1]
+                    else:
+                        self.output_desc[0].sym_shape = copy.deepcopy(sym_shape)
+                        self.output_desc[0].sym_shape[1] = self.output_desc[0].shape[1]
+                elif len(sym_shape) == 4:
+                    self.output_desc[0].sym_shape = copy.deepcopy(sym_shape)
+                    self.output_desc[0].sym_shape[-1] = self.output_desc[0].shape[-1]
         
         else:
             raise Exception(f"Unexpected op {self.akg_name}")
@@ -952,7 +1045,7 @@ class OpDesc:
             self.src_format = re.findall(r'src_layout="(.*?)"', input_str)[0]
             self.dst_format = re.findall(r'dst_layout="(.*?)"', input_str)[0]
         
-        elif self.name in ["reshape", "squeeze", "nn.batch_flatten"]:
+        elif self.name in ["reshape", "squeeze", "nn.batch_flatten", "repeat", "broadcast_to"]:
             self.shape = self.output_desc[0].shape
         
         elif self.name == "expand_dims":
@@ -968,6 +1061,22 @@ class OpDesc:
             self.pad_head = [pad[0] for pad in pad_width]
             self.pad_tail = [pad[1] for pad in pad_width]
             self.is_pad_minus = any(pad < 0 for pad in self.pad_head) or any(pad < 0 for pad in self.pad_tail)
+        
+        elif self.name == "strided_slice":
+            try:
+                self.begin = list(map(int, re.findall(r'begin=\[(.*?)\]', input_str)[0].split(', ')))
+                self.end = list(map(int, re.findall(r'end=\[(.*?)\]', input_str)[0].split(', ')))
+                self.strides = list(map(int, re.findall(r'strides=\[(.*?)\]', input_str)[0].split(', ')))
+            except:
+                self.akg_name = ""
+                print("strided_slice failed")
+        
+        elif self.name == "cumsum":
+            self.axis = int(re.findall(r'axis=(-?\d+)', input_str)[0])
+            self.input_desc[0].data_type = 'int8'
+            
+        elif self.name == 'logical_not':
+            self.output_desc[0].data_type = 'int8'
         
         elif self.name == "variance":
             self.axis = int(re.findall(r'axis=\[(-?\d+)\]', input_str)[0])
@@ -1341,7 +1450,45 @@ class OpDesc:
                     "value": self.output_desc[0].data_type
                 }
             ]
-            
+        
+        elif self.akg_name == "CumSum":
+            return [
+                {
+                    "data_type": "int",
+                    "name": "axis",
+                    "value": self.axis
+                },
+                {
+                    "data_type": "bool",
+                    "name": "reverse",
+                    "value": False
+                },
+                {
+                    "data_type": "bool",
+                    "name": "exclusive",
+                    "value": False
+                }
+            ]
+        
+        elif self.akg_name == "StridedSlice":
+            return [
+                {
+                    "data_type": "listInt",
+                    "name": "begin",
+                    "value": self.begin
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "end",
+                    "value": self.end
+                },
+                {
+                    "data_type": "listInt",
+                    "name": "strides",
+                    "value": self.strides
+                }
+            ]
+        
         elif self.akg_name == "Reshape" or self.akg_name == "BroadcastTo":
             return [
                 {

@@ -1,15 +1,18 @@
+import tvm
 from tvm import tir
 import copy
+
+ana = tvm.arith.Analyzer()
 
 def dump_sym_shape(sym_shape):
     dump_shape = []
     for shape in sym_shape:
-        if isinstance(shape, int):
+        if isinstance(shape, int) or isinstance(shape, str):
             dump_shape.append(shape)
         elif isinstance(shape, tir.IntImm):
-            dump_shape.append(shape.value)
+            dump_shape.append(shape.value)            
         else:
-            dump_shape.append(str(shape))
+            dump_shape.append(str(ana.simplify(shape)))
     return dump_shape
 
 class TensorDesc:

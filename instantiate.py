@@ -90,7 +90,7 @@ def unpad(pad_ops, old_shape, new_shape):
         unpad.unpad_tail[1] = new_shape - old_shape
         pad_ops.append(unpad)
     elif "PadAkg_PadAkg_BatchMatMul" in op_names:
-        if "BroadcastTo" in op_names:
+        if "BroadcastTo" in op_names and len(shapes) == 4:
             reshape_shapes = [shapes[0] * shapes[1], shapes[2], shapes[3]]
             reshape_tensor = TensorDesc("reshape_" + last_tensor.tensor_name, last_tensor.data_type, reshape_shapes, last_tensor.format)
             reshape_tensor.sym_shape = [last_tensor.sym_shape[0] * last_tensor.sym_shape[1], last_tensor.sym_shape[2], last_tensor.sym_shape[3]]
@@ -101,7 +101,19 @@ def unpad(pad_ops, old_shape, new_shape):
             shapes = copy.deepcopy(last_tensor.shape)
             pad_ops.append(reshape_op)
         
-        if propagate_pad:
+        if "Transpose_Reshape" in op_names:
+            reshape_op = pad_ops[-1]
+            pad_ops = pad_ops[:-1]
+            last_tensor = reshape_op.input_desc[0]
+            shapes = copy.deepcopy(last_tensor.shape)
+            shapes[0] = old_shape
+            unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
+            unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
+            unpad = OpDesc(None, [last_tensor], [unpad_tensor])
+            unpad.akg_name = "UnPadAkgv2"
+            unpad.unpad_tail = [0] * len(shapes)
+            unpad.unpad_tail[0] = new_shape - old_shape 
+        elif propagate_pad:
             shapes[-2] = old_shape
             unpad_tensor = TensorDesc("unpad_" + last_tensor.tensor_name, last_tensor.data_type, shapes, last_tensor.format)
             unpad_tensor.sym_shape = copy.deepcopy(last_tensor.sym_shape)
@@ -193,11 +205,18 @@ def pad(fusedop):
         backbone_op.input_desc[1].sym_shape[2] = backbone_op.input_desc[1].shape[2]
     
     elif propagate_pad and backbone_op.akg_name == "Transpose":
-        origin_shape = backbone_op.input_desc[0].shape[1]
-        if origin_shape % 32 != 0:
-            fusedop.ops = backbone_op.get_padv2()
-            has_pad = True
-        fusedop.ops[-1].output_desc[0].sym_shape[-1] = fusedop.ops[-1].output_desc[0].shape[-1]
+        if backbone_op.axes == [0, 2, 1]:
+            origin_shape = backbone_op.input_desc[0].shape[1]
+            if origin_shape % 32 != 0:
+                fusedop.ops = backbone_op.get_padv2()
+                has_pad = True
+            fusedop.ops[-1].output_desc[0].sym_shape[-1] = fusedop.ops[-1].output_desc[0].shape[-1]
+        elif backbone_op.axes == [1, 2, 0]:
+            origin_shape = backbone_op.input_desc[0].shape[0]
+            if origin_shape % 32 != 0:
+                fusedop.ops = backbone_op.get_padv2()
+                has_pad = True
+            fusedop.ops[-1].output_desc[0].sym_shape[-1] = fusedop.ops[-1].output_desc[0].shape[-1]
         
     elif propagate_pad and backbone_op.akg_name == "LayoutTransform":
         fusedop.ops = backbone_op.get_padv2()
@@ -235,7 +254,7 @@ def load_and_instantiate(graphname):
         if os.path.isfile(os.path.join(infopath, graphname, filename)):
             with open(os.path.join(infopath, graphname, filename)) as f:
                 json_obj = json.load(f)
-                if json_obj["is_symbolic"] == True:
+                if json_obj["is_symbolic"] == True or len(re.findall("BatchMatMul|Fused_Transpose|ReduceMax", filename)) != 0:
                     fusedop = FusedOpDesc.load_json(json_obj, symbolic_shape, symbolic_map)
                     has_pad = False
                     

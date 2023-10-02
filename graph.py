@@ -247,9 +247,11 @@ def pad(fusedops, op_dict):
         elif backbone_op.akg_name == "MatMul":
             tensor_b = backbone_op.input_desc[1]
             old_shape = tensor_b.shape[0]
+            if old_shape in [92]:
+                continue
             new_shape = ((old_shape + 32) // 32) * 32
             # local padding, it will not change the graph
-            if tensor_b.shape[0] % 16 != 0:
+            if tensor_b.shape[0] % 16 != 0 and tensor_b.shape[0] != 4:
                 ops = []
                 for op in fusedop.ops:
                     ops += op.get_pad()
@@ -259,9 +261,11 @@ def pad(fusedops, op_dict):
             bmm_m = backbone_op.input_desc[0].shape[1]
             bmm_n = backbone_op.input_desc[1].shape[-1]
             bmm_k = backbone_op.input_desc[0].shape[-1]
-            if bmm_m == 50:
+            if bmm_m in [49, 50, 100] or bmm_n in [49]:
                 continue
-            assert(bmm_k % 16 == 0)
+            # assert(bmm_k % 16 == 0)
+            if bmm_k % 16 != 0:
+                continue
             if bmm_m % 16 != 0 and bmm_n % 16 == 0:
                 ops = []
                 
@@ -412,6 +416,23 @@ def propagate_symbolic_shape(fusedops, op_dict, graphtensors):
         elif fused_op == "Concat_Add":
             top.params[2].sym_shape = copy.deepcopy(top.params[2].shape)
             top.params[2].sym_shape[1] = top.params[0].sym_shape[1] + 1
+        elif fused_op == "Add":
+            if top.params[0].sym_shape != None:
+                top.params[1].sym_shape = copy.deepcopy(top.params[0].sym_shape)
+            else:
+                top.params[0].sym_shape = copy.deepcopy(top.params[1].sym_shape)
+        elif fused_op == "Add_Cast":
+            top.params[1].sym_shape = copy.deepcopy(top.params[0].sym_shape)
+        elif fused_op == "BatchMatMul_Add":
+            top.params[2].sym_shape = copy.deepcopy(top.params[2].shape)
+            top.params[2].sym_shape[-1] = top.params[1].sym_shape[1]
+        elif fused_op == "BatchMatMul_Add_Reshape_Transpose":
+            top.params[1].sym_shape = copy.deepcopy(top.params[1].shape)
+            if top.params[0].sym_shape != None:
+                top.params[1].sym_shape[0] = top.params[0].sym_shape[0]
+        elif fused_op == "BatchMatMul_Div_Add":
+            top.params[2].sym_shape = copy.deepcopy(top.params[2].shape)
+            top.params[2].sym_shape[2] = top.params[0].sym_shape[1]
         worklist = worklist[1:]
         for op in top.ops:
             op.compute_shape()
@@ -429,6 +450,8 @@ def propagate_symbolic_shape(fusedops, op_dict, graphtensors):
                         epilogue_op.params[idx].sym_shape = [sym_shape[0] * sym_shape[1], sym_shape[2], sym_shape[3]]
                     elif fused_op == "BatchMatMul_Reshape_Transpose" and epilogue_op.params[idx].shape != top.ops[-1].output_desc[0].shape:
                         sym_shape = top.ops[-1].output_desc[0].sym_shape
+                        if sym_shape is None:
+                            continue
                         if len(epilogue_op.params[idx].shape) == 2:
                             epilogue_op.params[idx].sym_shape = [ana.simplify(sym_shape[0] * sym_shape[1]), sym_shape[2] * sym_shape[3]]
                         else:
@@ -439,7 +462,25 @@ def propagate_symbolic_shape(fusedops, op_dict, graphtensors):
                     elif fused_op == "Conv2D_Add" and epilogue_op.backbone_op.akg_name == "Concat":
                         sym_shape = top.ops[-1].output_desc[0].sym_shape
                         epilogue_op.params[idx].sym_shape = [sym_shape[0], sym_shape[1] * sym_shape[2], sym_shape[3]]
+                    elif fused_op == "Conv2D_Add" and epilogue_op.params[idx].shape != top.ops[-1].output_desc[0].shape:
+                        sym_shape = top.ops[-1].output_desc[0].sym_shape
+                        epilogue_op.params[idx].sym_shape = [sym_shape[0], sym_shape[1] * sym_shape[2], sym_shape[3]]
+                    elif fused_op == "Add" and epilogue_op.backbone_op.akg_name == "MatMul" and epilogue_op.params[idx].shape != top.ops[-1].output_desc[0].shape:
+                        sym_shape = top.ops[-1].output_desc[0].sym_shape
+                        epilogue_op.params[idx].sym_shape = [sym_shape[0] * sym_shape[1], sym_shape[2]]
+                    elif fused_op == "Transpose" and epilogue_op.params[idx].shape != top.ops[-1].output_desc[0].shape:
+                        for i in range(len(epilogue_op.params)):
+                            if epilogue_op.params[i].shape == top.ops[-1].output_desc[0].shape and epilogue_op.params[i].sym_shape is None:
+                                epilogue_op.params[i].sym_shape = top.ops[-1].output_desc[0].sym_shape
+                                break
+                    elif fused_op in ["Reshape_Transpose", "Add_Cast"] and epilogue_op.backbone_op.akg_name == "MatMul" and epilogue_op.params[idx].shape != top.ops[-1].output_desc[0].shape:
+                        sym_shape = top.ops[-1].output_desc[0].sym_shape
+                        if sym_shape is None:
+                            continue
+                        epilogue_op.params[idx].sym_shape = [sym_shape[0] * sym_shape[1], sym_shape[2]]
                     else:
+                        if len(epilogue_op.params) > 20:
+                            continue
                         assert(epilogue_op.params[idx].shape == top.ops[-1].output_desc[0].shape)
                         epilogue_op.params[idx].sym_shape = copy.deepcopy(top.ops[-1].output_desc[0].sym_shape)
             if need_add and epilogue_op.id not in visited and epilogue_op not in worklist:
@@ -771,7 +812,270 @@ def fuse_matmul_for_vit(fusedops, op_dict, graphtensors):
                     fusedop.params.append(add_op.input_desc[0])
                     fusedop.inputs.append("meta")
                     
-                                    
+    return ops
+
+def fuse_matmul_for_detr(fusedops, op_dict, graphtensors):
+    ops = []
+    
+    for fusedop in fusedops:
+        if fusedop.is_skip != True:
+            if fusedop.ops[0].akg_name == "Reshape" and len(fusedop.desc) == 1:
+                
+                prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
+                epilogue_op = op_dict[fusedop.desc[0]]
+                # Add->Cast
+                  # reshape->matmul->reshape->add->reshape->transpose->div
+                  # reshape->matmul->reshape->add->reshape->transpose
+                count = 0
+                if len(prelogue_op.desc) == 2:
+                    for desc in prelogue_op.desc:
+                        reshape_op = op_dict[desc]
+                        if len(reshape_op.desc) == 1 and reshape_op.ops[0].akg_name == "Reshape" and len(reshape_op.ops[0].input_desc[0].shape) == 3:
+                            next_op = op_dict[reshape_op.desc[0]]
+                            if next_op.backbone_op.akg_name == "MatMul":
+                                count += 1
+                    if count != 2:
+                        continue
+                    if hasattr(prelogue_op, "has_fused") != True:
+                        op_list = []
+                        
+                        seq_len, batch_size, hidden_size = fusedop.params[0].shape
+                        
+                        a_tensor = TensorDesc("input_0", "float16", [batch_size * seq_len, hidden_size])
+                        b_tensor = TensorDesc("input_1", "float16", [2 * hidden_size, hidden_size])
+                        c_tensor = TensorDesc("output_0_0", "float16", [batch_size * seq_len, 2 * hidden_size])
+                        
+                        matmul_op = OpDesc(None, [a_tensor, b_tensor], [c_tensor])
+                        matmul_op.akg_name = "MatMul"
+                        
+                        reshape_res_tensor = TensorDesc(f"output_0_1", "float16", [])
+                        reshape_res_tensor.shape = [seq_len, batch_size, 2 * hidden_size]
+                        first_reshape_op = OpDesc(None, [c_tensor], [reshape_res_tensor])
+                        first_reshape_op.akg_name = "Reshape"
+                        first_reshape_op.shape = reshape_res_tensor.shape
+                        
+                        bias_add_tensor = TensorDesc("input_2", "float16", [2 * hidden_size])
+                        add_tensor = TensorDesc("output_0_2", "float16", [seq_len, batch_size, 2 * hidden_size])
+                        add_op = OpDesc(None, [reshape_res_tensor, bias_add_tensor], [add_tensor])
+                        add_op.akg_name = "Add"
+                                            
+                        split_op = OpDesc(None, [add_tensor], [])
+                        split_op.axis = 2
+                        reshape_op_list = []
+                        transpose_op_list = []
+                        
+                        for i in range(2):
+                            shapes = copy.deepcopy(add_tensor.shape)
+                            shapes[2] = shapes[2] // 2
+                            output_tensor = TensorDesc(f"output_0_{3+i}", add_tensor.data_type, shapes)
+                            split_op.output_desc.append(output_tensor)
+                            
+                            reshape_res_tensor = TensorDesc(f"output_0_{5+i}", output_tensor.data_type, [])
+                            reshape_res_tensor.shape = [seq_len, hidden_size, batch_size]
+                            reshape_op = OpDesc(None, [output_tensor], [reshape_res_tensor])
+                            reshape_op.akg_name = "Reshape"
+                            reshape_op.shape = reshape_res_tensor.shape
+                            reshape_op_list.append(reshape_op)
+                            
+                            tranpose_shapes = [hidden_size, seq_len, batch_size]
+                            transpose_res_tensor = TensorDesc(f"output_0_{7+i}", reshape_res_tensor.data_type, tranpose_shapes)
+                            transpose_op = OpDesc(None, [reshape_res_tensor], [transpose_res_tensor])
+                            transpose_op.axes = [1, 0, 2]
+                            transpose_op.akg_name = "Transpose"
+                            transpose_op_list.append(transpose_op)
+                            
+                        split_op.akg_name = "Split"
+                
+                        op_list.append(matmul_op)
+                        op_list.append(first_reshape_op)
+                        op_list.append(add_op)
+                        op_list.append(split_op)
+                        op_list += reshape_op_list
+                        op_list += transpose_op_list
+                        
+                        fused_matmul_op = FusedOpDesc(epilogue_op.id, op_list, epilogue_op.params, False, False)
+                        fused_matmul_op.inputs = fusedop.inputs + ['meta']
+                        fused_matmul_op.output = epilogue_op.output
+                        fused_matmul_op.lineno = epilogue_op.lineno
+                        fused_matmul_op.is_skip = False
+                        fused_matmul_op.desc = []
+                        fused_matmul_op.params = [a_tensor, b_tensor, bias_add_tensor]
+                        prelogue_op.has_fused = True
+                        
+                        to_delete = []
+                        for desc in prelogue_op.desc:
+                            reshape_op = op_dict[desc]
+                            
+                            if reshape_op.ops[-1].akg_name == "Cast" and prelogue_op.ops[-1].akg_name != "Cast":
+                                cast_op = reshape_op.ops[-1]
+                                cast_op.input_desc[0] = prelogue_op.ops[0].output_desc[0]
+                                cast_op.output_desc[0].shape = copy.deepcopy(cast_op.input_desc[0].shape)
+                                prelogue_op.ops.append(cast_op)
+                            
+                            reshape_op.is_skip = True
+                            to_delete.append(reshape_op.id)
+                            op_dict.pop(reshape_op.id)
+                            bmm_op = op_dict[reshape_op.desc[0]]
+                            bmm_op.is_skip = True
+                            op_dict.pop(bmm_op.id)
+                            next_reshape_op = op_dict[bmm_op.desc[0]]
+                            next_reshape_op.is_skip = True
+                            next_bmm_op = op_dict[next_reshape_op.desc[0]]
+                            if next_reshape_op.ops[-1].akg_name != "Div":
+                                op_dict.pop(next_reshape_op.id)
+                            
+                        for desc in to_delete:
+                            prelogue_op.desc.remove(desc)
+                        
+                        fused_matmul_op.desc.append(next_bmm_op.id)
+                        for i, input in enumerate(next_bmm_op.inputs):
+                            next_bmm_op.inputs[i] = fused_matmul_op.output
+                        
+                        epilogue_op = op_dict[epilogue_op.desc[0]]
+                        last_div_op = epilogue_op.ops[-1]
+                        if last_div_op.akg_name == "Div":
+                        
+                            epi_epilogue_op = op_dict[next_bmm_op.desc[0]]
+                            add_op = epi_epilogue_op.ops[0]
+                            last_div_op.input_desc[0] = add_op.input_desc[0]
+                            last_div_op.output_desc[0].shape = copy.deepcopy(last_div_op.input_desc[0].shape)
+                            add_op.input_desc[0] = last_div_op.output_desc[0]
+                            epi_epilogue_op.params.append(last_div_op.input_desc[1])
+                            epi_epilogue_op.ops = [last_div_op] + epi_epilogue_op.ops
+                            
+                        ops.append(fused_matmul_op)
+                        prelogue_op.desc.append(fused_matmul_op.id)
+                        op_dict[fused_matmul_op.id] = fused_matmul_op
+                        fused_matmul_op.backbone_op = matmul_op
+                        
+                elif len(prelogue_op.desc) == 6:
+                    for desc in prelogue_op.desc:
+                        reshape_op = op_dict[desc]
+                        if len(reshape_op.desc) == 1 and reshape_op.ops[0].akg_name == "Reshape" and len(reshape_op.ops[0].input_desc[0].shape) == 3:
+                            next_op = op_dict[reshape_op.desc[0]]
+                            if next_op.backbone_op.akg_name == "MatMul":
+                                count += 1
+                    if count != 6:
+                        continue
+                    if hasattr(prelogue_op, "has_fused") != True:
+                        op_list = []
+                        
+                        seq_len, batch_size, hidden_size = fusedop.params[0].shape
+                        
+                        a_tensor = TensorDesc("input_0", "float16", [batch_size * seq_len, hidden_size])
+                        b_tensor = TensorDesc("input_1", "float16", [6 * hidden_size, hidden_size])
+                        c_tensor = TensorDesc("output_0_0", "float16", [batch_size * seq_len, 6 * hidden_size])
+                        
+                        matmul_op = OpDesc(None, [a_tensor, b_tensor], [c_tensor])
+                        matmul_op.akg_name = "MatMul"
+                        
+                        reshape_res_tensor = TensorDesc(f"output_0_1", "float16", [])
+                        reshape_res_tensor.shape = [seq_len, batch_size, 6 * hidden_size]
+                        first_reshape_op = OpDesc(None, [c_tensor], [reshape_res_tensor])
+                        first_reshape_op.akg_name = "Reshape"
+                        first_reshape_op.shape = reshape_res_tensor.shape
+                        
+                        bias_add_tensor = TensorDesc("input_2", "float16", [6 * hidden_size])
+                        add_tensor = TensorDesc("output_0_2", "float16", [seq_len, batch_size, 6 * hidden_size])
+                        add_op = OpDesc(None, [reshape_res_tensor, bias_add_tensor], [add_tensor])
+                        add_op.akg_name = "Add"
+                                            
+                        split_op = OpDesc(None, [add_tensor], [])
+                        split_op.axis = 2
+                        reshape_op_list = []
+                        transpose_op_list = []
+                        
+                        for i in range(6):
+                            shapes = copy.deepcopy(add_tensor.shape)
+                            shapes[2] = shapes[2] // 6
+                            output_tensor = TensorDesc(f"output_0_{3+i}", add_tensor.data_type, shapes)
+                            split_op.output_desc.append(output_tensor)
+                            
+                            reshape_res_tensor = TensorDesc(f"output_0_{9+i}", output_tensor.data_type, [])
+                            reshape_res_tensor.shape = [seq_len, hidden_size, batch_size]
+                            reshape_op = OpDesc(None, [output_tensor], [reshape_res_tensor])
+                            reshape_op.akg_name = "Reshape"
+                            reshape_op.shape = reshape_res_tensor.shape
+                            reshape_op_list.append(reshape_op)
+                            
+                            tranpose_shapes = [hidden_size, seq_len, batch_size]
+                            transpose_res_tensor = TensorDesc(f"output_0_{16+i}", reshape_res_tensor.data_type, tranpose_shapes)
+                            transpose_op = OpDesc(None, [reshape_res_tensor], [transpose_res_tensor])
+                            transpose_op.axes = [1, 0, 2]
+                            transpose_op.akg_name = "Transpose"
+                            transpose_op_list.append(transpose_op)
+                            
+                        split_op.akg_name = "Split"
+                
+                        op_list.append(matmul_op)
+                        op_list.append(first_reshape_op)
+                        op_list.append(add_op)
+                        op_list.append(split_op)
+                        op_list += reshape_op_list
+                        op_list += transpose_op_list
+                        
+                        fused_matmul_op = FusedOpDesc(epilogue_op.id, op_list, epilogue_op.params, False, False)
+                        fused_matmul_op.inputs = fusedop.inputs + ['meta']
+                        fused_matmul_op.output = epilogue_op.output
+                        fused_matmul_op.lineno = epilogue_op.lineno
+                        fused_matmul_op.is_skip = False
+                        fused_matmul_op.desc = []
+                        fused_matmul_op.params = [a_tensor, b_tensor, bias_add_tensor]
+                        prelogue_op.has_fused = True
+                        
+                        to_delete = []
+                        bmm_list = []
+                        for desc in prelogue_op.desc:
+                            reshape_op = op_dict[desc]
+                            
+                            if reshape_op.ops[-1].akg_name == "Cast" and prelogue_op.ops[-1].akg_name != "Cast":
+                                cast_op = reshape_op.ops[-1]
+                                cast_op.input_desc[0] = prelogue_op.ops[0].output_desc[0]
+                                cast_op.output_desc[0].shape = copy.deepcopy(cast_op.input_desc[0].shape)
+                                prelogue_op.ops.append(cast_op)
+                            
+                            reshape_op.is_skip = True
+                            to_delete.append(reshape_op.id)
+                            op_dict.pop(reshape_op.id)
+                            bmm_op = op_dict[reshape_op.desc[0]]
+                            bmm_op.is_skip = True
+                            op_dict.pop(bmm_op.id)
+                            next_reshape_op = op_dict[bmm_op.desc[0]]
+                            next_reshape_op.is_skip = True
+                            op_dict.pop(next_reshape_op.id)
+                            if op_dict[next_reshape_op.desc[0]] not in bmm_list:
+                                bmm_list.append(op_dict[next_reshape_op.desc[0]])
+                            
+                        for desc in to_delete:
+                            prelogue_op.desc.remove(desc)
+                        
+                        for next_bmm_op in bmm_list:
+                            fused_matmul_op.desc.append(next_bmm_op.id)
+                            next_bmm_op.inputs[1] = fused_matmul_op.output
+                            
+                            last_div_op = epilogue_op.ops[-1]
+                            if last_div_op.akg_name == "Div":
+                            
+                                epi_epilogue_op = op_dict[next_bmm_op.desc[0]]
+                                add_op = epi_epilogue_op.ops[0]
+                                last_div_op.input_desc[0] = add_op.input_desc[0]
+                                last_div_op.output_desc[0].shape = copy.deepcopy(last_div_op.input_desc[0].shape)
+                                add_op.input_desc[0] = last_div_op.output_desc[0]
+                                epi_epilogue_op.params.append(last_div_op.input_desc[1])
+                                epi_epilogue_op.ops = [last_div_op] + epi_epilogue_op.ops
+                                
+                        ops.append(fused_matmul_op)
+                        prelogue_op.desc.append(fused_matmul_op.id)
+                        op_dict[fused_matmul_op.id] = fused_matmul_op
+                        fused_matmul_op.backbone_op = matmul_op
+                else:
+                    continue
+                            
+                
+                continue
+            
+            ops.append(fusedop)
+
     return ops
 
 def unify_cast(fusedop, op_dict, graphtensors, descs):
@@ -791,12 +1095,21 @@ def unify_cast(fusedop, op_dict, graphtensors, descs):
                 fusedop.inputs.remove(fusedop_input)
                 params.append(input)
                 fusedop.params.remove(input)
-                
-    ops.append(fusedop.ops[-1])
-    params.append(fusedop.ops[-1].input_desc[0])
+    
+    while len(fusedop.ops) > 0 and fusedop.ops[-1].akg_name == "Cast":
+        ops.append(fusedop.ops[-1])
+        params.append(fusedop.ops[-1].input_desc[0])
+        if ops[-1].input_desc[0].tensor_name.find("input") == 0:
+            idx = fusedop.params.index(ops[-1].input_desc[0])
+            fusedop.params.remove(ops[-1].input_desc[0])
+            prelogue_op = op_dict[graphtensors[fusedop.inputs[idx]]]
+            if len(ops) >= 2 and fusedop.ops[-1].akg_name == "Cast"and fusedop.ops[-2].akg_name == "Cast":
+                fusedop.inputs.remove(fusedop.inputs[idx])
+                prelogue_op.desc[prelogue_op.desc.index(fusedop.id)] = descs[0]
+                inputs.append(prelogue_op.output)
+        fusedop.ops = fusedop.ops[:-1]
     ops.reverse()
     params.reverse()
-    fusedop.ops = fusedop.ops[:-1]
     
     if len(fusedop.ops) == 0:
         prelogue = list(filter(lambda input : input[0] == '%', fusedop.inputs))
@@ -814,19 +1127,21 @@ def unify_cast(fusedop, op_dict, graphtensors, descs):
     output_cnt = 0
     for i, op in enumerate(ops):
         if op.akg_name == "Cast":
-            assert(i == 0)
+            assert(i < 2)
             op.input_desc[0] = copy.deepcopy(op.input_desc[0])
-            op.input_desc[0].tensor_name = "input_0"
-            op.output_desc[0].tensor_name = "output_0_0"
-            params[0] = op.input_desc[0]
+            op.input_desc[0].tensor_name = f"input_{input_cnt}"
+            params[input_cnt] = op.input_desc[0]
+            input_cnt += 1
+            op.output_desc[0].tensor_name = f"output_0_{output_cnt}"
+            output_cnt += 1
         else:
             for input in op.input_desc:
                 if input.tensor_name.find("input") == 0:
-                    input_cnt += 1
                     input.tensor_name = "input_{}".format(input_cnt)
                     params[input_cnt] = input
-            output_cnt += 1
+                    input_cnt += 1
             op.output_desc[0].tensor_name = "output_0_{}".format(output_cnt)
+            output_cnt += 1
             
     input_cnt += 1
     output_cnt += 1
@@ -850,7 +1165,8 @@ def unify_cast(fusedop, op_dict, graphtensors, descs):
     desc_op0.desc = desc_op1.desc
     if len(inputs) != 0:
         assert(len(inputs) == 1)
-        op_dict[graphtensors[inputs[0]]].desc[op_dict[graphtensors[inputs[0]]].desc.index(fusedop.id)] = desc_op0.id
+        if desc_op0.id not in op_dict[graphtensors[inputs[0]]].desc:
+            op_dict[graphtensors[inputs[0]]].desc[op_dict[graphtensors[inputs[0]]].desc.index(fusedop.id)] = desc_op0.id
     desc_op0.inputs = inputs + desc_op0.inputs
     desc_op1.is_skip = True
     op_dict.pop(desc_op1.id)
@@ -984,7 +1300,6 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
                         if input in graphtensors:
                             op_dict[graphtensors[input]].desc[op_dict[graphtensors[input]].desc.index(prelogue_op.id)] = fusedop.id
                     op_dict.pop(prelogue_op.id)
-                
                 else:
                     replace_tensor_name = {}
                     replace_tensor_name["input_0"] = "output_0_0"
@@ -1022,7 +1337,8 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
             elif len(prelogue_op.desc) == 1 and prelogue_op.ops[-1].akg_name == "Add":
                 
                 add_op = prelogue_op.ops[-1]
-                if add_op.input_desc[0].shape == add_op.input_desc[1].shape:
+                if add_op.input_desc[0].shape == add_op.input_desc[1].shape or \
+                    prelogue_op.backbone_op.akg_name == "BatchMatMul":
                     continue
                 
                 replace_tensor_name = {}
@@ -1111,6 +1427,8 @@ def prelogue_fuse(fusedops, op_dict, graphtensors):
                 op_dict.pop(fusedop.id)
             
             elif fusedop.ops[0].akg_name == "Cast":
+                if fusedop.inputs[0].find("%input") == 0:
+                    continue
                 prelogue_op = op_dict[graphtensors[fusedop.inputs[0]]]
                 if prelogue_op.ops[0].akg_name == "BatchMatMul":
                     continue
@@ -1202,14 +1520,15 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
                     reshape_op = fusedop.ops[2]
                     if len(transpose_op.axes) == 3:
                         seq_len, fused_batch_size0, hidden_dim = transpose_op.output_desc[0].shape
-                        batch_size = fused_batch_size // seq_len
-                        reshape_op.output_desc[0].shape = [batch_size, fused_batch_size0 // batch_size, seq_len, hidden_dim]
-                        reshape_op.shape = copy.deepcopy(reshape_op.output_desc[0].shape)
-                        reshape_op.input_desc[0] = transpose_op.input_desc[0]
-                        transpose_op.input_desc[0] = reshape_op.output_desc[0]
-                        transpose_op.axes = [0, 2, 1, 3]
-                        transpose_op.output_desc[0].shape = [batch_size, seq_len, fused_batch_size0 // batch_size, hidden_dim]
-                        fusedop.ops[1:] = [reshape_op, transpose_op]
+                        if seq_len != 49 and seq_len != 100:
+                            batch_size = fused_batch_size // seq_len
+                            reshape_op.output_desc[0].shape = [batch_size, fused_batch_size0 // batch_size, seq_len, hidden_dim]
+                            reshape_op.shape = copy.deepcopy(reshape_op.output_desc[0].shape)
+                            reshape_op.input_desc[0] = transpose_op.input_desc[0]
+                            transpose_op.input_desc[0] = reshape_op.output_desc[0]
+                            transpose_op.axes = [0, 2, 1, 3]
+                            transpose_op.output_desc[0].shape = [batch_size, seq_len, fused_batch_size0 // batch_size, hidden_dim]
+                            fusedop.ops[1:] = [reshape_op, transpose_op]
                 fusedop.output = epilogue_op.output
                 graphtensors[fusedop.output] = fusedop.id
                 fusedop.desc = epilogue_op.desc
@@ -1228,7 +1547,7 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
                 last_op_output = last_op.output_desc[0]
                 output_cnt = int(last_op_output.tensor_name.split('_')[-1]) + 1
                 epilogue_op_name = "".join([op.akg_name for op in epilogue_op.ops])
-                if epilogue_op_name in ["ReshapeAddMulCastPowMulAddMulTanhCastAddMulReshapeCast", "ReshapeAddDivCastErfCastAddMulMulReshapeCast", "ReshapeTransposeAdd", "ReshapeAdd", "ReshapeAddAdd", "ReshapeMulCastPowMulAddMulTanhCastAddMulReshapeCast"]:
+                if epilogue_op_name in ["ReshapeAddReshapeTransposeDiv", "ReshapeAddReluReshape", "ReshapeAddNegExpAddDivGather", "ReshapeAddGather", "ReshapeAddReshapeTranspose", "ReshapeAddMulCastPowMulAddMulTanhCastAddMulReshapeCast", "ReshapeAddDivCastErfCastAddMulMulReshapeCast", "ReshapeTransposeAdd", "ReshapeAdd", "ReshapeAddAdd", "ReshapeMulCastPowMulAddMulTanhCastAddMulReshapeCast"]:
                     for op in epilogue_op.ops:
                         for i, input in enumerate(op.input_desc):
                             if input.tensor_name == "input_0":
@@ -1268,6 +1587,13 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
                         assert(last_add_op.akg_name == "Add" and reshape_op.akg_name == "Reshape")
                         last_add_op.input_desc[0] = reshape_op.output_desc[0]
                         fusedop.ops = fusedop.ops[:3] + [fusedop.ops[-1]]
+                    elif epilogue_op_name == "ReshapeAddReshapeTransposeDiv":
+                        last_div_op = fusedop.ops[-1]
+                        transpose_op = fusedop.ops[-2]
+                        last_div_op.input_desc[0] = transpose_op.input_desc[0]
+                        last_div_op.output_desc[0].shape = copy.deepcopy(last_div_op.input_desc[0].shape)
+                        transpose_op.input_desc[0] = last_div_op.output_desc[0]
+                        fusedop.ops[-2:] = [last_div_op, transpose_op]
 
             elif ((fusedop.ops[0].akg_name == "Pow" and fusedop.ops[1].akg_name == "ReduceSum") or fusedop.backbone_op.akg_name == "ReduceSum") and len(fusedop.desc) == 1:
                 last_op = fusedop.ops[-1]
@@ -1276,6 +1602,8 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
                 epilogue_op = op_dict[fusedop.desc[0]]
                 fused_op_names = "_".join([op.akg_name for op in fusedop.ops])
                 epilogue_op_names = "_".join([op.akg_name for op in epilogue_op.ops])
+                if "ExpandDims_ExpandDims_ExpandDims_ExpandDims_ExpandDims_ExpandDims" in epilogue_op_names:
+                    continue
                 need_special_fuse = "Pow_ReduceSum_Mul" in fused_op_names and "Add_Rsqrt_Mul_Mul_Add" in epilogue_op_names 
                 for op in epilogue_op.ops:
                     for i, input in enumerate(op.input_desc):
@@ -1315,6 +1643,9 @@ def epilogue_fuse(fusedops, op_dict, graphtensors):
                     last_op_output = last_op.output_desc[0]
                     output_cnt = int(last_op_output.tensor_name.split('_')[-1]) + 1
                     epilogue_op = op_dict[fusedop.desc[0]]
+                    
+                    if epilogue_op.backbone_op.akg_name == "ExpandDims":
+                        continue
                     
                     start_idx = 1
                     if "Cast_Add" in fused_op_names:
